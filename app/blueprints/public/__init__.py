@@ -1,6 +1,6 @@
 from flask import Blueprint, abort, render_template, request
 
-from app.models import Discipline, Matrix, Project, SitePage, Teacher
+from app.models import Discipline, Matrix, Project, SitePage, Teacher, TeacherHistory, GovernanceDocument
 
 bp = Blueprint("public", __name__)
 
@@ -46,7 +46,9 @@ def discipline_detail(discipline_id):
 
 @bp.get("/docentes")
 def teachers():
-    return render_template("public/teachers.html", teachers=Teacher.query.filter_by(active=True).order_by(Teacher.name).all())
+    teachers = Teacher.query.filter_by(active=True).order_by(Teacher.name).all()
+    history = TeacherHistory.query.order_by(TeacherHistory.semester.desc(), TeacherHistory.body, TeacherHistory.role, TeacherHistory.teacher_id).all()
+    return render_template("public/teachers.html", teachers=teachers, history=history)
 
 
 @bp.get("/docentes/<int:teacher_id>")
@@ -67,9 +69,14 @@ def governance(body):
     from app.models import GovernanceMember
     if body not in ("colegiado", "nde"):
         abort(404)
-    members = GovernanceMember.query.filter_by(body=body, active=True).order_by(GovernanceMember.name).all()
+    current_doc = GovernanceDocument.query.filter_by(body=body, active=True).order_by(GovernanceDocument.issued_at.desc()).first()
+    members_query = GovernanceMember.query.filter_by(body=body, active=True)
+    if current_doc:
+        members_query = members_query.filter_by(governance_document_id=current_doc.id)
+    members = members_query.order_by(GovernanceMember.role, GovernanceMember.name).all()
+    history = GovernanceDocument.query.filter_by(body=body).order_by(GovernanceDocument.issued_at.desc()).all()
     title = "Colegiado do curso" if body == "colegiado" else "Núcleo Docente Estruturante"
-    return render_template("public/governance.html", members=members, title=title, body=body)
+    return render_template("public/governance.html", members=members, history=history, current_doc=current_doc, title=title, body=body)
 
 
 @bp.get("/ingressos")

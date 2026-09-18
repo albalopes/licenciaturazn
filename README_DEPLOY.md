@@ -149,3 +149,24 @@ Durante o build será exibida uma listagem de `/app` e será validada a existên
 
 # Administradores do portal: username, matrícula, id ou e-mail do SUAP, separados por vírgulas.
 ADMIN_SUAP_USERS=
+
+## Atualização desta versão
+
+O `seed.py` continua sendo executado automaticamente no `docker-entrypoint.sh`. Além de `db.create_all()`, esta versão possui uma etapa idempotente de atualização de esquema para as novas colunas de projetos e governança. Portanto, o banco MySQL existente pode permanecer no mesmo container/stack.
+
+A área restrita agora possui:
+
+- paginação e busca nos cadastros;
+- edição e exclusão dos principais recursos;
+- sincronização de projetos ativos do SUAP para Pesquisa, Ensino e Extensão, filtrados para Natal-Zona Norte;
+- marcação manual de participação de estudantes da Licenciatura em Informática;
+- importação de portarias do Colegiado e NDE em PDF;
+- extração automática de composição, matrícula, função e suplência;
+- histórico de portarias e docentes por semestre;
+- sincronização de fotos de docentes com o SUAP quando a API fornecer a foto.
+
+Para a sincronização SUAP, mantenha o escopo OAuth com `read identificacao email` ou outro conjunto de escopos que o cliente cadastrado no SUAP esteja autorizado a solicitar.
+
+
+### API do SUAP
+A integração de projetos e fotos de servidores utiliza a API atual documentada em `https://suap.ifrn.edu.br/api/docs/` e não utiliza mais `/api/v2/`.

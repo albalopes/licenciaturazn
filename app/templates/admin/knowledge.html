@@ -1,8 +1,9 @@
 {% extends 'admin/base.html' %}
-{% block title %}Base de conhecimento · Administração{% endblock %}
+{% block title %}Base de conhecimento · Administração{% include 'admin/_pagination.html' with context %}
+{% endblock %}
 {% block admin_content %}
 <div class="admin-header"><div><span class="eyebrow">Assistente</span><h1>Base de conhecimento</h1><p class="admin-subtitle">Cadastre PDFs oficiais que poderão ser consultados pelo assistente.</p></div></div>
-<div class="admin-grid-two">
+<form class="admin-search" method="get"><input name="q" value="{{ q }}" placeholder="Buscar documento..."><button class="btn btn-outline">Buscar</button></form><div class="admin-grid-two">
   <form class="admin-form admin-card" method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <h2>Adicionar documento</h2>
@@ -21,7 +22,8 @@
   </div>
 </div>
 <div class="admin-card admin-table"><h2>Documentos indexados</h2><table><thead><tr><th>Documento</th><th>Tipo</th><th>Matriz</th><th>Trechos</th><th>Indexado em</th><th>Status</th><th></th></tr></thead><tbody>
-{% for source in sources %}<tr><td><strong>{{ source.title }}</strong><br><small>{{ source.filename }}</small></td><td>{{ source.document_type }}</td><td>{{ source.matrix_year or 'Geral' }}</td><td>{{ source.chunk_count }}</td><td>{{ source.indexed_at.strftime('%d/%m/%Y %H:%M') if source.indexed_at else '—' }}</td><td>{{ 'Ativo' if source.active else 'Inativo' }}</td><td><form method="post" action="{{ url_for('admin.delete_knowledge', source_id=source.id) }}" onsubmit="return confirm('Excluir este documento e seus trechos?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline" type="submit">Excluir</button></form></td></tr>
+{% for source in sources %}<tr><td><strong>{{ source.title }}</strong><br><small>{{ source.filename }}</small></td><td>{{ source.document_type }}</td><td>{{ source.matrix_year or 'Geral' }}</td><td>{{ source.chunk_count }}</td><td>{{ source.indexed_at.strftime('%d/%m/%Y %H:%M') if source.indexed_at else '—' }}</td><td>{{ 'Ativo' if source.active else 'Inativo' }}</td><td><a class="btn-link" href="{{ url_for('admin.edit_resource', resource='conhecimento', object_id=source.id) }}">Editar</a> <form style="display:inline" method="post" action="{{ url_for('admin.delete_knowledge', source_id=source.id) }}" onsubmit="return confirm('Excluir este documento e seus trechos?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline" type="submit">Excluir</button></form></td></tr>
 {% else %}<tr><td colspan="7">Nenhum documento indexado.</td></tr>{% endfor %}
 </tbody></table></div>
+{% include 'admin/_pagination.html' with context %}
 {% endblock %}

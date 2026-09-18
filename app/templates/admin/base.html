@@ -1,2 +1,17 @@
-{% extends 'layouts/base.html' %}{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">{% endblock %}
-{% block content %}<div class="admin-shell"><aside class="admin-sidebar"><div class="admin-title">Administração</div><a href="{{ url_for('admin.dashboard') }}">Dashboard</a><a href="{{ url_for('admin.matrices') }}">Matrizes</a><a href="{{ url_for('admin.disciplines') }}">Disciplinas</a><a href="{{ url_for('admin.teachers') }}">Docentes</a><a href="{{ url_for('admin.projects') }}">Projetos</a><a href="{{ url_for('admin.pages') }}">Páginas</a><a href="{{ url_for('admin.documents') }}">Documentos</a><a href="{{ url_for('admin.knowledge_management') }}">Base de conhecimento</a><a href="{{ url_for('admin.events') }}">Eventos</a><a href="{{ url_for('admin.governance_management') }}">Colegiado/NDE</a><a href="{{ url_for('admin.entrance_management') }}">Entradas</a><a href="{{ url_for('admin.faq_management') }}">FAQ</a><a href="{{ url_for('auth.logout') }}">Sair</a></aside><section class="admin-content">{% block admin_content %}{% endblock %}</section></div>{% endblock %}
+{% extends 'layouts/base.html' %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">{% endblock %}
+{% block content %}
+<div class="admin-shell">
+<aside class="admin-sidebar">
+  <div class="admin-title">Área restrita</div>
+  <div class="admin-group"><small>Visão geral</small><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></div>
+  <div class="admin-group"><small>Currículo</small><a href="{{ url_for('admin.matrices') }}">Matrizes</a><a href="{{ url_for('admin.disciplines') }}">Disciplinas</a><a href="{{ url_for('admin.entrance_management') }}">Entradas</a></div>
+  <div class="admin-group"><small>Pessoas e gestão</small><a href="{{ url_for('admin.teachers') }}">Docentes</a><a href="{{ url_for('admin.governance_management') }}">Colegiado e NDE</a></div>
+  <div class="admin-group"><small>Projetos</small><a href="{{ url_for('admin.projects') }}">Projetos</a></div>
+  <div class="admin-group"><small>Conteúdo</small><a href="{{ url_for('admin.pages') }}">Páginas</a><a href="{{ url_for('admin.documents') }}">Documentos</a><a href="{{ url_for('admin.events') }}">Eventos</a><a href="{{ url_for('admin.faq_management') }}">FAQ</a></div>
+  <div class="admin-group"><small>Assistente</small><a href="{{ url_for('admin.knowledge_management') }}">Base de conhecimento</a></div>
+  <div class="admin-group"><a href="{{ url_for('public.home') }}">← Ver site</a><a href="{{ url_for('auth.logout') }}">Sair</a></div>
+</aside>
+<section class="admin-content">{% block admin_content %}{% endblock %}</section>
+</div>
+{% endblock %}

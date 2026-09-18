@@ -145,3 +145,7 @@ O assistente é uma ferramenta de consulta e não substitui a Coordenação de C
 O portal também possui uma área para divulgação de projetos de **pesquisa, ensino e extensão**, com filtros por categoria e página individual para cada projeto. Há ainda uma entrada específica para **PIBID** (`/pibid`), permitindo destacar projetos vinculados ao programa sem misturá-los à navegação geral.
 
 Na administração, o menu **Projetos** permite cadastrar título, sigla, categoria, descrição, objetivos, coordenação, equipe, período, situação, apoio/financiamento, parceiros e links. Um projeto pode ser marcado como **PIBID**, **destaque** e/ou **publicado**.
+
+
+### API do SUAP
+A integração de projetos e fotos de servidores utiliza a API atual documentada em `https://suap.ifrn.edu.br/api/docs/` e não utiliza mais `/api/v2/`.

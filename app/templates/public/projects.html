@@ -18,7 +18,7 @@
         <h2>{{ project.title }}</h2>
         {% if project.acronym %}<div class="project-acronym">{{ project.acronym }}</div>{% endif %}
         <p>{{ project.description|truncate(220) }}</p>
-        <div class="project-meta">{% if project.period %}<span>{{ project.period }}</span>{% endif %}{% if project.status %}<span>{{ project.status }}</span>{% endif %}</div>
+        <div class="project-meta">{% if project.campus %}<span>{{ project.campus }}</span>{% endif %}{% if project.period %}<span>{{ project.period }}</span>{% endif %}{% if project.status %}<span>{{ project.status }}</span>{% endif %}</div>{% if project.has_licenciatura_students is true %}<span class="badge">Participação da Licenciatura</span>{% endif %}
         <span class="card-link">Ver projeto →</span>
       </a>
       {% else %}<div class="empty">Nenhum projeto publicado nesta categoria.</div>{% endfor %}

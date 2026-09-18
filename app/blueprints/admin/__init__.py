@@ -1,12 +1,56 @@
 from functools import wraps
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for, current_app
+from math import ceil
+from datetime import datetime
 from flask_login import current_user, login_required
 
 from app.extensions import db
-from app.models import AcademicEvent, Discipline, Document, Matrix, Project, SitePage, Teacher, KnowledgeSource
+from app.models import AcademicEvent, Discipline, Document, Matrix, Project, SitePage, Teacher, KnowledgeSource, GovernanceMember, GovernanceDocument, EntranceSchedule, FAQ
 
 bp = Blueprint("admin", __name__)
+
+RESOURCE_ENDPOINTS = {"matrizes":"matrices", "disciplinas":"disciplines", "docentes":"teachers", "paginas":"pages", "documentos":"documents", "eventos":"events", "projetos":"projects", "entradas":"entrance_management", "faq":"faq_management", "portarias":"governance_management", "membros-governanca":"governance_management", "conhecimento":"knowledge_management"}
+
+RESOURCE_CONFIG = {
+    "matrizes": {"model": Matrix, "label": "Matriz", "fields": [
+        ("year", "Ano", "number"), ("title", "Título", "text"), ("status", "Status", "text"), ("description", "Descrição", "textarea"),
+        ("document_url", "Documento (URL)", "url"), ("duration_semesters", "Semestres", "number"), ("total_hours", "Carga horária", "number"), ("is_published", "Publicada", "checkbox")],
+    },
+    "disciplinas": {"model": Discipline, "label": "Disciplina", "fields": [
+        ("matrix_id", "Matriz", "matrix"), ("code", "Código", "text"), ("name", "Nome", "text"), ("semester", "Semestre", "number"),
+        ("area", "Área", "text"), ("kind", "Tipo", "text"), ("credits", "Créditos", "number"), ("hours", "Horas", "number"), ("lesson_hours", "Horas-aula", "number"),
+        ("summary", "Ementa", "textarea"), ("objectives", "Objetivos", "textarea"), ("contents", "Conteúdos", "textarea"), ("methodology", "Metodologia", "textarea"),
+        ("assessment", "Avaliação", "textarea"), ("bibliography_basic", "Bibliografia básica", "textarea"), ("bibliography_complementary", "Bibliografia complementar", "textarea"), ("support_software", "Softwares", "textarea")],
+    },
+    "docentes": {"model": Teacher, "label": "Docente", "fields": [
+        ("name", "Nome", "text"), ("siape", "SIAPE/matrícula", "text"), ("photo_url", "Foto (URL)", "url"), ("email", "E-mail", "email"), ("lattes_url", "Lattes", "url"), ("orcid_url", "ORCID", "url"),
+        ("education", "Formação", "textarea"), ("areas", "Áreas", "textarea"), ("bio", "Biografia", "textarea"), ("active", "Ativo", "checkbox")],
+    },
+    "paginas": {"model": SitePage, "label": "Página", "fields": [("slug","Slug","text"),("title","Título","text"),("category","Categoria","text"),("content","Conteúdo","textarea"),("published","Publicada","checkbox")]},
+    "documentos": {"model": Document, "label": "Documento", "fields": [("title","Título","text"),("category","Categoria","text"),("description","Descrição","textarea"),("url","URL","url"),("published","Publicado","checkbox")]},
+    "eventos": {"model": AcademicEvent, "label": "Evento", "fields": [("title","Título","text"),("description","Descrição","textarea"),("starts_at","Início","datetime"),("ends_at","Fim","datetime"),("category","Categoria","text"),("url","URL","url"),("published","Publicado","checkbox")]},
+    "projetos": {"model": Project, "label": "Projeto", "fields": [("title","Título","text"),("acronym","Sigla","text"),("project_type","Tipo","text"),("description","Descrição","textarea"),("objectives","Objetivos","textarea"),("coordinator","Coordenador","text"),("team","Equipe","textarea"),("period","Período","text"),("status","Status","text"),("campus","Campus","text"),("academic_year","Ano","number"),("funding","Fomento","text"),("partners","Parceiros","textarea"),("url","URL","url"),("image_url","Imagem","url"),("is_pibid","PIBID","checkbox"),("has_licenciatura_students","Alunos da Licenciatura","nullable_checkbox"),("licenciatura_notes","Observação sobre alunos","textarea"),("featured","Destaque","checkbox"),("published","Publicado","checkbox")]},
+    "entradas": {"model": EntranceSchedule, "label": "Entrada", "fields": [("year","Ano","number"),("shift","Turno","text"),("matrix_year","Matriz","number"),("notes","Observações","textarea"),("published","Publicada","checkbox")]},
+    "faq": {"model": FAQ, "label": "FAQ", "fields": [("question","Pergunta","text"),("answer","Resposta","textarea"),("category","Categoria","text"),("position","Posição","number"),("published","Publicada","checkbox")]},
+    "portarias": {"model": GovernanceDocument, "label": "Portaria", "fields": [("body","Órgão","text"),("title","Título","text"),("portaria_number","Número da portaria","text"),("issued_at","Data de emissão","date"),("semester","Semestre","text"),("document_url","Documento (URL)","url"),("active","Vigente","checkbox")]},
+    "membros-governanca": {"model": GovernanceMember, "label": "Membro de governança", "fields": [("body","Órgão","text"),("name","Nome","text"),("role","Função","text"),("term","Mandato","text"),("siape","Matrícula/SIAPE","text"),("substitute","Suplente","checkbox"),("semester","Semestre","text"),("active","Ativo","checkbox")]},
+    "conhecimento": {"model": KnowledgeSource, "label": "Fonte de conhecimento", "fields": [("title","Título","text"),("document_type","Tipo","text"),("matrix_year","Ano da matriz","number"),("description","Descrição","textarea"),("source_url","URL da fonte","url"),("active","Ativa","checkbox")]},
+}
+
+def _paginate(query):
+    page = max(request.args.get("page", 1, type=int), 1)
+    per_page = min(max(request.args.get("per_page", 20, type=int), 5), 100)
+    return db.paginate(query, page=page, per_page=per_page, error_out=False)
+
+
+def _apply_search(query, model, fields):
+    q = request.args.get("q", "").strip()
+    if q:
+        from sqlalchemy import or_
+        text_fields = [getattr(model, f) for f in fields if hasattr(getattr(model, f), 'type') and f not in ('id',)]
+        query = query.filter(or_(*[field.ilike(f"%{q}%") for field in text_fields if hasattr(field, 'ilike')])) if text_fields else query
+    return query, q
 
 
 def admin_required(view):
@@ -49,7 +93,9 @@ def matrices():
         db.session.commit()
         flash("Matriz criada.", "success")
         return redirect(url_for("admin.matrices"))
-    return render_template("admin/matrices.html", matrices=Matrix.query.order_by(Matrix.year.desc()).all())
+    q=request.args.get("q", "").strip(); query=Matrix.query.order_by(Matrix.year.desc());
+    if q: query=query.filter(Matrix.title.ilike(f"%{q}%"))
+    return render_template("admin/matrices.html", matrices=_paginate(query), q=q)
 
 
 @bp.post("/matrizes/<int:matrix_id>/excluir")
@@ -79,7 +125,9 @@ def disciplines():
         db.session.commit()
         flash("Disciplina cadastrada.", "success")
         return redirect(url_for("admin.disciplines"))
-    return render_template("admin/disciplines.html", disciplines=Discipline.query.order_by(Discipline.matrix_id, Discipline.semester, Discipline.name).all(), matrices=Matrix.query.order_by(Matrix.year.desc()).all())
+    q=request.args.get("q", "").strip(); query=Discipline.query.order_by(Discipline.matrix_id, Discipline.semester, Discipline.name);
+    if q: query=query.filter(Discipline.name.ilike(f"%{q}%"))
+    return render_template("admin/disciplines.html", disciplines=_paginate(query), matrices=Matrix.query.order_by(Matrix.year.desc()).all(), q=q)
 
 
 @bp.post("/disciplinas/<int:discipline_id>/excluir")
@@ -97,7 +145,7 @@ def delete_discipline(discipline_id):
 def teachers():
     if request.method == "POST":
         teacher = Teacher(
-            name=request.form["name"], photo_url=request.form.get("photo_url"), email=request.form.get("email"),
+            name=request.form["name"], siape=request.form.get("siape"), suap_id=request.form.get("siape"), photo_url=request.form.get("photo_url"), email=request.form.get("email"),
             lattes_url=request.form.get("lattes_url"), orcid_url=request.form.get("orcid_url"), education=request.form.get("education"),
             areas=request.form.get("areas"), bio=request.form.get("bio"), active=bool(request.form.get("active")),
         )
@@ -105,7 +153,13 @@ def teachers():
         db.session.commit()
         flash("Docente cadastrado.", "success")
         return redirect(url_for("admin.teachers"))
-    return render_template("admin/teachers.html", teachers=Teacher.query.order_by(Teacher.name).all())
+    q=request.args.get("q", "").strip(); ativo=request.args.get("ativo", "").strip().lower(); query=Teacher.query.order_by(Teacher.name)
+    if q:
+        from sqlalchemy import or_
+        query=query.filter(or_(Teacher.name.ilike(f"%{q}%"), Teacher.email.ilike(f"%{q}%"), Teacher.siape.ilike(f"%{q}%")))
+    if ativo == "sim": query=query.filter_by(active=True)
+    elif ativo == "nao": query=query.filter_by(active=False)
+    return render_template("admin/teachers.html", teachers=_paginate(query), q=q)
 
 
 @bp.route("/paginas", methods=["GET", "POST"])
@@ -117,7 +171,9 @@ def pages():
         db.session.commit()
         flash("Página criada.", "success")
         return redirect(url_for("admin.pages"))
-    return render_template("admin/pages.html", pages=SitePage.query.order_by(SitePage.title).all())
+    q=request.args.get("q", "").strip(); query=SitePage.query.order_by(SitePage.title);
+    if q: query=query.filter(SitePage.title.ilike(f"%{q}%"))
+    return render_template("admin/pages.html", pages=_paginate(query), q=q)
 
 
 @bp.route("/documentos", methods=["GET", "POST"])
@@ -129,7 +185,9 @@ def documents():
         db.session.commit()
         flash("Documento cadastrado.", "success")
         return redirect(url_for("admin.documents"))
-    return render_template("admin/documents.html", documents=Document.query.order_by(Document.published_at.desc()).all())
+    q=request.args.get("q", "").strip(); query=Document.query.order_by(Document.published_at.desc());
+    if q: query=query.filter(Document.title.ilike(f"%{q}%"))
+    return render_template("admin/documents.html", documents=_paginate(query), q=q)
 
 
 @bp.route("/eventos", methods=["GET", "POST"])
@@ -142,19 +200,53 @@ def events():
         db.session.commit()
         flash("Evento cadastrado.", "success")
         return redirect(url_for("admin.events"))
-    return render_template("admin/events.html", events=AcademicEvent.query.order_by(AcademicEvent.starts_at.desc()).all())
+    q=request.args.get("q", "").strip(); query=AcademicEvent.query.order_by(AcademicEvent.starts_at.desc());
+    if q: query=query.filter(AcademicEvent.title.ilike(f"%{q}%"))
+    return render_template("admin/events.html", events=_paginate(query), q=q)
 
 @bp.route("/gestao", methods=["GET", "POST"])
 @admin_required
 def governance_management():
-    from app.models import GovernanceMember
-    if request.method == "POST":
-        member = GovernanceMember(body=request.form["body"], name=request.form["name"], role=request.form.get("role"), term=request.form.get("term"), document_url=request.form.get("document_url"), active=bool(request.form.get("active")))
-        db.session.add(member)
-        db.session.commit()
-        flash("Membro cadastrado.", "success")
-        return redirect(url_for("admin.governance_management"))
-    return render_template("admin/governance.html", members=GovernanceMember.query.order_by(GovernanceMember.body, GovernanceMember.name).all())
+    q=request.args.get("q", "").strip()
+    body=request.args.get("body", "").strip()
+    query=GovernanceDocument.query.order_by(GovernanceDocument.issued_at.desc(), GovernanceDocument.id.desc())
+    if body in ("colegiado", "nde"): query=query.filter_by(body=body)
+    if q: query=query.filter(GovernanceDocument.title.ilike(f"%{q}%") | GovernanceDocument.portaria_number.ilike(f"%{q}%"))
+    documents=_paginate(query)
+    member_page=max(request.args.get("m_page", 1, type=int), 1)
+    member_q=request.args.get("mq", "").strip()
+    member_query=GovernanceMember.query.order_by(GovernanceMember.body, GovernanceMember.semester.desc(), GovernanceMember.name)
+    if body in ("colegiado", "nde"):
+        member_query=member_query.filter_by(body=body)
+    if member_q:
+        from sqlalchemy import or_
+        member_query=member_query.filter(or_(GovernanceMember.name.ilike(f"%{member_q}%"), GovernanceMember.siape.ilike(f"%{member_q}%"), GovernanceMember.role.ilike(f"%{member_q}%")))
+    members=db.paginate(member_query, page=member_page, per_page=20, error_out=False)
+    return render_template("admin/governance.html", documents=documents, members=members, q=q, body=body, member_q=member_q)
+
+
+@bp.post("/governanca/<int:document_id>/excluir")
+@admin_required
+def delete_governance_document(document_id):
+    from pathlib import Path
+    doc = GovernanceDocument.query.get_or_404(document_id)
+    path = Path(doc.file_path) if doc.file_path else None
+    TeacherHistory.query.filter_by(governance_document_id=doc.id).update({"governance_document_id": None})
+    db.session.delete(doc); db.session.commit()
+    if path:
+        try: path.unlink()
+        except OSError: pass
+    flash("Portaria removida do histórico.", "success")
+    return redirect(url_for("admin.governance_management"))
+
+
+@bp.post("/governanca/membros/<int:member_id>/excluir")
+@admin_required
+def delete_governance_member(member_id):
+    member = GovernanceMember.query.get_or_404(member_id)
+    db.session.delete(member); db.session.commit()
+    flash("Membro removido do histórico.", "success")
+    return redirect(url_for("admin.governance_management"))
 
 
 @bp.route("/ingressos", methods=["GET", "POST"])
@@ -167,7 +259,9 @@ def entrance_management():
         db.session.commit()
         flash("Entrada cadastrada.", "success")
         return redirect(url_for("admin.entrance_management"))
-    return render_template("admin/entrances.html", entries=EntranceSchedule.query.order_by(EntranceSchedule.year.desc()).all())
+    q=request.args.get("q", "").strip(); query=EntranceSchedule.query.order_by(EntranceSchedule.year.desc());
+    if q: query=query.filter(EntranceSchedule.shift.ilike(f"%{q}%"))
+    return render_template("admin/entrances.html", entries=_paginate(query), q=q)
 
 
 @bp.route("/faq", methods=["GET", "POST"])
@@ -180,7 +274,122 @@ def faq_management():
         db.session.commit()
         flash("Pergunta cadastrada.", "success")
         return redirect(url_for("admin.faq_management"))
-    return render_template("admin/faq.html", faqs=FAQ.query.order_by(FAQ.category, FAQ.position).all())
+    q=request.args.get("q", "").strip(); query=FAQ.query.order_by(FAQ.category, FAQ.position);
+    if q: query=query.filter(FAQ.question.ilike(f"%{q}%"))
+    return render_template("admin/faq.html", faqs=_paginate(query), q=q)
+
+
+@bp.route("/<resource>/<int:object_id>/editar", methods=["GET", "POST"])
+@admin_required
+def edit_resource(resource, object_id):
+    config = RESOURCE_CONFIG.get(resource)
+    if not config:
+        abort(404)
+    obj = config["model"].query.get_or_404(object_id)
+    if request.method == "POST":
+        for field, _label, kind in config["fields"]:
+            if kind == "checkbox":
+                setattr(obj, field, bool(request.form.get(field)))
+            elif kind == "nullable_checkbox":
+                value = request.form.get(field)
+                setattr(obj, field, None if value in (None, "") else value == "true")
+            elif kind == "number":
+                raw = request.form.get(field)
+                setattr(obj, field, int(raw) if raw not in (None, "") else None)
+            elif kind == "datetime":
+                raw = request.form.get(field)
+                setattr(obj, field, datetime.fromisoformat(raw) if raw else None)
+            elif kind == "date":
+                raw = request.form.get(field)
+                setattr(obj, field, datetime.fromisoformat(raw).date() if raw else None)
+            elif kind == "matrix":
+                setattr(obj, field, int(request.form[field]))
+            else:
+                setattr(obj, field, request.form.get(field))
+        db.session.commit()
+        flash(f"{config['label']} atualizado(a).", "success")
+        return redirect(url_for("admin." + RESOURCE_ENDPOINTS[resource]))
+    context = {}
+    if resource == "disciplinas":
+        context["matrices"] = Matrix.query.order_by(Matrix.year.desc()).all()
+    context["RESOURCE_ENDPOINTS"] = RESOURCE_ENDPOINTS
+    return render_template("admin/edit_resource.html", resource=resource, config=config, obj=obj, **context)
+
+
+@bp.post("/<resource>/<int:object_id>/excluir")
+@admin_required
+def delete_resource(resource, object_id):
+    config = RESOURCE_CONFIG.get(resource)
+    if not config:
+        abort(404)
+    obj = config["model"].query.get_or_404(object_id)
+    if resource == "portarias":
+        TeacherHistory.query.filter_by(governance_document_id=obj.id).update({"governance_document_id": None})
+    db.session.delete(obj)
+    db.session.commit()
+    flash(f"{config['label']} excluído(a).", "success")
+    return redirect(url_for("admin." + RESOURCE_ENDPOINTS[resource]))
+
+
+@bp.post("/projetos/sincronizar-suap")
+@admin_required
+def sync_projects_suap():
+    from app.services.projects import sync_projects
+    imported, errors = sync_projects()
+    if errors:
+        flash(f"Sincronização parcial: {len(imported)} projeto(s) importado(s). {'; '.join(errors)}", "warning")
+    else:
+        flash(f"Sincronização concluída: {len(imported)} projeto(s) do Campus Natal-Zona Norte importado(s) a partir da API /api/.", "success")
+    return redirect(url_for("admin.projects"))
+
+
+@bp.route("/governanca/importar", methods=["POST"])
+@admin_required
+def import_governance_document():
+    from pathlib import Path
+    from app.services.governance import import_governance
+    uploaded = request.files.get("file")
+    body = request.form.get("body")
+    if not uploaded or not uploaded.filename or body not in ("colegiado", "nde"):
+        flash("Informe o tipo e selecione uma portaria em PDF.", "danger")
+        return redirect(url_for("admin.governance_management"))
+    upload_dir = Path(current_app.root_path) / "static" / "docs" / "governance"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = uploaded.filename.replace("..", "_").replace("/", "_").replace("\\", "_")
+    path = upload_dir / safe_name
+    uploaded.save(path)
+    try:
+        doc, parsed = import_governance(path, body, title=request.form.get("title") or uploaded.filename, document_url=f"/static/docs/governance/{safe_name}")
+        flash(f"Portaria importada: {doc.portaria_number}. {len(parsed['members'])} membro(s) extraído(s). Fotos do SUAP foram atualizadas quando disponíveis.", "success")
+    except Exception as exc:
+        db.session.rollback()
+        flash(f"Não foi possível importar a portaria: {exc}", "danger")
+    return redirect(url_for("admin.governance_management"))
+
+
+@bp.post("/docentes/sincronizar-suap")
+@admin_required
+def sync_teacher_photos():
+    from app.services.governance import _server_photo_map
+    photos = _server_photo_map()
+    updated = 0
+    for teacher in Teacher.query.all():
+        siapes = set()
+        if getattr(teacher, 'siape', None):
+            siapes.add(str(teacher.siape))
+        if getattr(teacher, 'suap_id', None):
+            siapes.add(str(teacher.suap_id))
+        siapes.update(str(m.siape) for m in GovernanceMember.query.filter_by(name=teacher.name).all() if m.siape)
+        for siape in siapes:
+            if photos.get(siape):
+                teacher.photo_url = photos[siape]
+                teacher.siape = teacher.siape or siape
+                teacher.suap_id = teacher.suap_id or siape
+                updated += 1
+                break
+    db.session.commit()
+    flash(f"Fotos sincronizadas com o SUAP: {updated} docente(s) atualizado(s).", "success")
+    return redirect(url_for("admin.teachers"))
 
 
 @bp.route("/conhecimento", methods=["GET", "POST"])
@@ -207,7 +416,9 @@ def knowledge_management():
             db.session.rollback()
             flash(f"Não foi possível indexar o documento: {exc}", "danger")
         return redirect(url_for("admin.knowledge_management"))
-    return render_template("admin/knowledge.html", sources=KnowledgeSource.query.order_by(KnowledgeSource.created_at.desc()).all())
+    q=request.args.get("q", "").strip(); query=KnowledgeSource.query.order_by(KnowledgeSource.created_at.desc());
+    if q: query=query.filter(KnowledgeSource.title.ilike(f"%{q}%"))
+    return render_template("admin/knowledge.html", sources=_paginate(query), q=q)
 
 
 @bp.post("/conhecimento/<int:source_id>/excluir")
@@ -232,28 +443,44 @@ def delete_knowledge(source_id):
 def projects():
     if request.method == "POST":
         project = Project(
-            title=request.form["title"],
-            acronym=request.form.get("acronym"),
-            project_type=request.form["project_type"],
-            description=request.form["description"],
-            objectives=request.form.get("objectives"),
-            coordinator=request.form.get("coordinator"),
-            team=request.form.get("team"),
-            period=request.form.get("period"),
-            status=request.form.get("status", "Em andamento"),
-            funding=request.form.get("funding"),
-            partners=request.form.get("partners"),
-            url=request.form.get("url"),
-            image_url=request.form.get("image_url"),
+            title=request.form["title"], acronym=request.form.get("acronym"),
+            project_type=request.form["project_type"], description=request.form["description"],
+            objectives=request.form.get("objectives"), coordinator=request.form.get("coordinator"),
+            team=request.form.get("team"), period=request.form.get("period"),
+            status=request.form.get("status", "Em andamento"), campus=request.form.get("campus") or "Natal-Zona Norte",
+            academic_year=request.form.get("academic_year", type=int), funding=request.form.get("funding"),
+            partners=request.form.get("partners"), url=request.form.get("url"), image_url=request.form.get("image_url"),
             is_pibid=bool(request.form.get("is_pibid")),
-            featured=bool(request.form.get("featured")),
-            published=bool(request.form.get("published")),
+            has_licenciatura_students=(None if request.form.get("has_licenciatura_students") in (None, "") else request.form.get("has_licenciatura_students") == "true"),
+            licenciatura_notes=request.form.get("licenciatura_notes"), featured=bool(request.form.get("featured")),
+            published=bool(request.form.get("published")), source_system="manual",
         )
         db.session.add(project)
         db.session.commit()
         flash("Projeto cadastrado.", "success")
         return redirect(url_for("admin.projects"))
-    return render_template("admin/projects.html", projects=Project.query.order_by(Project.project_type, Project.title).all())
+    q = request.args.get("q", "").strip()
+    project_type = request.args.get("tipo", "").strip().lower()
+    status = request.args.get("status", "").strip()
+    licenciatura = request.args.get("licenciatura", "").strip().lower()
+    source = request.args.get("source", "").strip().lower()
+    query = Project.query.order_by(Project.project_type, Project.title)
+    if q:
+        from sqlalchemy import or_
+        query = query.filter(or_(Project.title.ilike(f"%{q}%"), Project.coordinator.ilike(f"%{q}%"), Project.campus.ilike(f"%{q}%"), Project.description.ilike(f"%{q}%")))
+    if project_type in ("pesquisa", "ensino", "extensao"):
+        query = query.filter_by(project_type=project_type)
+    if status:
+        query = query.filter(Project.status.ilike(f"%{status}%"))
+    if licenciatura == "sim":
+        query = query.filter(Project.has_licenciatura_students.is_(True))
+    elif licenciatura == "nao":
+        query = query.filter(Project.has_licenciatura_students.is_(False))
+    elif licenciatura == "pendente":
+        query = query.filter(Project.has_licenciatura_students.is_(None))
+    if source in ("suap", "manual"):
+        query = query.filter_by(source_system=source)
+    return render_template("admin/projects.html", projects=_paginate(query), q=q, project_type=project_type, status=status, licenciatura=licenciatura, source=source)
 
 
 @bp.post("/projetos/<int:project_id>/excluir")

@@ -11,6 +11,7 @@ from datetime import datetime
 
 from app import create_app
 from app.extensions import db
+from sqlalchemy import inspect, text
 from app.models import (
     Discipline,
     DisciplinePrerequisite,
@@ -20,6 +21,35 @@ from app.models import (
     KnowledgeSource,
     Document,
 )
+
+
+def ensure_schema():
+    """Apply small additive schema changes to an existing production DB.
+    db.create_all() creates new tables but does not add columns to existing tables.
+    This idempotent step keeps redeploys safe for the current MySQL database.
+    """
+    inspector = inspect(db.engine)
+    additions = {
+        "governance_members": {
+            "siape": "VARCHAR(50) NULL", "substitute": "BOOLEAN NOT NULL DEFAULT 0",
+            "semester": "VARCHAR(20) NULL", "governance_document_id": "INTEGER NULL",
+        },
+        "teachers": {"suap_id": "VARCHAR(80) NULL", "siape": "VARCHAR(50) NULL"},
+        "projects": {
+            "suap_id": "VARCHAR(80) NULL", "source_system": "VARCHAR(40) NOT NULL DEFAULT 'manual'",
+            "campus": "VARCHAR(120) NULL", "academic_year": "INTEGER NULL",
+            "has_licenciatura_students": "BOOLEAN NULL", "licenciatura_notes": "TEXT NULL",
+        },
+    }
+    for table, columns in additions.items():
+        if table not in inspector.get_table_names():
+            continue
+        existing = {c["name"] for c in inspector.get_columns(table)}
+        for column, ddl in columns.items():
+            if column not in existing:
+                db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+    db.session.commit()
+
 
 app = create_app()
 BASE = Path(app.root_path).parent
@@ -293,6 +323,7 @@ def seed_matrices():
 
 with app.app_context():
     db.create_all()
+    ensure_schema()
     seed_matrices()
     db.session.flush()
     load_catalog()
@@ -308,8 +339,61 @@ with app.app_context():
             coordinator="Cadastrar coordenação do subprojeto", period="Cadastrar período", status="A atualizar",
             is_pibid=True, featured=True, published=True,
         ))
+    # Portarias fornecidas para iniciar o histórico do Colegiado e NDE.
+    from app.models import GovernanceDocument
+    from app.services.governance import import_governance
+    governance_seed = [
+        ("colegiado", "Colegiado 2026.1", BASE / "app/static/docs/governance/colegiado_2026_1.pdf"),
+        ("colegiado", "Colegiado 2026.2", BASE / "app/static/docs/governance/colegiado_2026_2.pdf"),
+        ("nde", "NDE 2025", BASE / "app/static/docs/governance/nde_2025.pdf"),
+        ("nde", "NDE 2026.2", BASE / "app/static/docs/governance/nde_2026_2.pdf"),
+    ]
+    for body, title, path in governance_seed:
+        if path.exists() and not GovernanceDocument.query.filter_by(title=title).first():
+            try:
+                # Initial import does not require SUAP; photos are filled later on admin import/sync.
+                import_governance(path, body, title=title, document_url=f"/static/docs/governance/{path.name}")
+            except Exception as exc:
+                db.session.rollback()
+                print(f"Aviso: não foi possível importar {title}: {exc}")
+
+    # Reprocessa somente o histórico de atuação das portarias que já existem.
+    # Isso é necessário porque a portaria do Colegiado 2026.1 registra atuação
+    # em 2025.2 e 2026.1 na mesma tabela.
+    from app.services.governance import parse_governance_pdf
+    from app.models import TeacherHistory, Teacher, GovernanceMember
+    for body, title, path in governance_seed:
+        doc = GovernanceDocument.query.filter_by(title=title).first()
+        if not doc or not path.exists():
+            continue
+        try:
+            parsed = parse_governance_pdf(path, body)
+            for item in parsed['members']:
+                if item['role'].lower() not in ('docente', 'coordenadora', 'coordenador'):
+                    continue
+                teacher = Teacher.query.filter_by(name=item['name']).first()
+                if not teacher:
+                    continue
+                terms = item.get('atuacao') or [parsed.get('semester')]
+                for term in terms:
+                    if term and not TeacherHistory.query.filter_by(teacher_id=teacher.id, semester=term, body=body).first():
+                        db.session.add(TeacherHistory(teacher_id=teacher.id, semester=term, body=body, role=item['role'], governance_document_id=doc.id))
+        except Exception as exc:
+            print(f"Aviso: não foi possível atualizar histórico de {title}: {exc}")
+    # A página de docentes representa a composição vigente do curso; os nomes que
+    # aparecem somente em portarias históricas permanecem no histórico, mas deixam
+    # de ser exibidos como docentes atuais.
+    current_names = set()
+    for current_doc in GovernanceDocument.query.filter_by(active=True).all():
+        for member in GovernanceMember.query.filter_by(governance_document_id=current_doc.id, active=True).all():
+            if member.role and member.role.lower() in ('docente', 'coordenadora', 'coordenador'):
+                current_names.add(member.name)
+    for teacher in Teacher.query.all():
+        if TeacherHistory.query.filter_by(teacher_id=teacher.id).first():
+            teacher.active = teacher.name in current_names
+
     db.session.commit()
-    print("Seed concluído: matrizes 2012/2018, ementas, pré-requisitos e páginas acadêmicas carregados.")
+    print("Seed concluído: matrizes 2012/2018, ementas, pré-requisitos, governança e páginas acadêmicas carregados.")
 
 
 def seed_knowledge():

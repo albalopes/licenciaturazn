@@ -23,12 +23,17 @@ services:
       SUAP_CLIENT_ID: ${SUAP_CLIENT_ID:-}
       SUAP_CLIENT_SECRET: ${SUAP_CLIENT_SECRET:-}
       SUAP_REDIRECT_URI: ${SUAP_REDIRECT_URI:-http://localhost:5003/auth/suap/callback}
-      SUAP_SCOPE: ${SUAP_SCOPE:-identificacao email}
+      SUAP_SCOPE: ${SUAP_SCOPE:-read identificacao email}
       SUAP_ENDPOINT_ME: ${SUAP_ENDPOINT_ME:-rh/eu/}
       SUAP_ENDPOINT_PERIODS: ${SUAP_ENDPOINT_PERIODS:-ensino/periodos/}
       SUAP_ENDPOINT_MY_LINKS: ${SUAP_ENDPOINT_MY_LINKS:-rh/meus-vinculos/}
       SUAP_ENDPOINT_MY_DATA: ${SUAP_ENDPOINT_MY_DATA:-rh/meus-dados/}
       SUAP_ENDPOINT_STUDENT_DATA: ${SUAP_ENDPOINT_STUDENT_DATA:-ensino/meus-dados-aluno/}
+      SUAP_ENDPOINT_SERVERS: ${SUAP_ENDPOINT_SERVERS:-rh/servidores/}
+      SUAP_ENDPOINT_PROJECTS_RESEARCH: ${SUAP_ENDPOINT_PROJECTS_RESEARCH:-pesquisa/projetos/}
+      SUAP_ENDPOINT_PROJECTS_EXTENSION: ${SUAP_ENDPOINT_PROJECTS_EXTENSION:-pesquisa/extensao/}
+      SUAP_ENDPOINT_PROJECTS_TEACHING: ${SUAP_ENDPOINT_PROJECTS_TEACHING:-ensino/projetos/}
+      SUAP_PROJECT_CAMPUS: ${SUAP_PROJECT_CAMPUS:-Natal-Zona-Norte}
       SUAP_ENDPOINT_VIRTUAL_CLASSES: ${SUAP_ENDPOINT_VIRTUAL_CLASSES:-meu-diario/turmas-virtuais/}
       SUAP_ENDPOINT_REPORT: ${SUAP_ENDPOINT_REPORT:-meu-diario/boletim/{year}/{period}/}
       SUAP_ENDPOINT_SCHEDULE: ${SUAP_ENDPOINT_SCHEDULE:-meu-diario/horario/{year}/{period}/}

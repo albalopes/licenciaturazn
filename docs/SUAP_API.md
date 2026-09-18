@@ -1,96 +1,44 @@
 # Integração com a API atual do SUAP
 
-A integração utiliza a documentação oficial disponibilizada pelo SUAP em:
+A integração deste projeto usa a API disponível em `https://suap.ifrn.edu.br/api/docs/` e a base `https://suap.ifrn.edu.br/api/`.
 
-https://suap.ifrn.edu.br/api/docs/
+> **Importante:** esta versão do projeto não utiliza mais rotas `/api/v2/`.
 
-A base da API utilizada pelo projeto é:
+## Projetos
 
-```text
-https://suap.ifrn.edu.br/api/
-```
+A sincronização administrativa consulta as coleções atuais configuradas para:
 
-## OAuth2
+- Pesquisa: `pesquisa/projetos/`
+- Extensão: `pesquisa/extensao/` (com `extensao/projetos/` como fallback configurável)
+- Ensino: `ensino/projetos/` (com `ensino/projetos-ensino/` como fallback configurável)
 
-O projeto usa o fluxo OAuth2 `Authorization Code` no backend Flask. O cliente oficial do IFRN para Django documenta uma aplicação `Confidential` com `Authorization Code`, enquanto o repositório oficial de clientes do IFRN orienta a obtenção de autorização/token pela documentação do SUAP.
+A aplicação pagina as respostas usando `limit` e `offset` até percorrer a coleção disponível. Depois filtra pelo Campus Natal-Zona Norte.
 
-Configuração:
+Os campos retornados pelo SUAP são normalizados para o modelo local de projetos. Como os nomes dos campos podem variar entre módulos, a implementação aceita aliases para título, campus, situação, período, coordenador, equipe, URL etc.
 
-```env
-SUAP_BASE_URL=https://suap.ifrn.edu.br
-SUAP_AUTH_URL=https://suap.ifrn.edu.br/o/authorize/
-SUAP_TOKEN_URL=https://suap.ifrn.edu.br/o/token/
-SUAP_API_BASE_URL=https://suap.ifrn.edu.br/api/
-SUAP_CLIENT_ID=
-SUAP_CLIENT_SECRET=
-SUAP_REDIRECT_URI=https://SEU_DOMINIO/auth/suap/callback
-SUAP_SCOPE=read
-```
+A sincronização **não sobrescreve** as marcações editoriais feitas na área restrita, especialmente:
 
-## Endpoints atuais usados pelo projeto
+- `is_pibid`;
+- `has_licenciatura_students`;
+- `licenciatura_notes`;
+- `featured`;
+- `published`.
 
-Os endpoints abaixo substituem a configuração antiga baseada em `/api/v2/minhas-informacoes/...`:
+Assim, a Coordenação pode sincronizar os dados oficiais do SUAP e manter manualmente a informação de participação de estudantes da Licenciatura em Informática.
 
-| Função | Endpoint |
-|---|---|
-| Identidade do usuário | `/api/rh/eu/` |
-| Meus vínculos | `/api/rh/meus-vinculos/` |
-| Meus dados de RH | `/api/rh/meus-dados/` |
-| Dados do aluno | `/api/ensino/meus-dados-aluno/` |
-| Períodos | `/api/ensino/periodos/` |
+## Servidores e fotos
 
-O endpoint `/api/rh/eu/` é especialmente importante: há registro de 2026 no cliente oficial de JavaScript do IFRN informando que o antigo `/api/eu` passou a retornar 404 e que o equivalente atual é `/api/rh/eu/`.
+O endpoint configurado para servidores é `rh/servidores/`. A rotina percorre as páginas disponíveis e procura a fotografia pelos campos conhecidos da resposta (`foto`, `foto_url`, `url_foto`, `imagem`, entre outros).
 
-## Diário acadêmico
+As fotos são atualizadas:
 
-Os endpoints de diário (`meu-diario/...`) continuam configuráveis por variável de ambiente. Isso evita acoplar o portal a uma rota que possa mudar na documentação atual do SUAP sem precisar alterar o código.
+1. quando uma nova portaria do Colegiado/NDE é importada pela área restrita;
+2. quando o administrador usa **Sincronizar fotos com SUAP** na área de docentes.
 
-```env
-SUAP_ENDPOINT_VIRTUAL_CLASSES=meu-diario/turmas-virtuais/
-SUAP_ENDPOINT_REPORT=meu-diario/boletim/{year}/{period}/
-SUAP_ENDPOINT_SCHEDULE=meu-diario/horario/{year}/{period}/
-```
+A identificação preferencial é a matrícula/SIAPE extraída da portaria.
 
-Antes de habilitar essas funções em produção, confira as respectivas rotas na documentação atual em `/api/docs/`.
+## OAuth
 
-## Rotas internas do portal
+O consumo dos endpoints protegidos ocorre com o token OAuth2 do usuário autenticado no SUAP. A aplicação já mantém o fluxo de autorização, renovação do token e os endpoints configuráveis em `app/config.py` e nas variáveis da Stack.
 
-Depois do login pelo SUAP:
-
-- `/suap/meus-dados`
-- `/suap/api/eu`
-- `/suap/api/vinculos`
-- `/suap/api/dados-pessoais`
-- `/suap/api/dados-aluno`
-- `/suap/api/periodos`
-- `/suap/api/turmas-virtuais`
-- `/suap/api/boletim/<ano>/<periodo>`
-- `/suap/api/horario/<ano>/<periodo>`
-
-Todas são protegidas por login e o token OAuth2 permanece no backend/sessão do Flask; ele não é enviado ao JavaScript do navegador.
-
-## Segurança
-
-- `SUAP_CLIENT_SECRET` deve ficar somente nas variáveis de ambiente do Portainer.
-- Não coloque `.env` no GitHub.
-- O token OAuth2 é armazenado na sessão do Flask.
-- O backend tenta renovar o access token usando refresh token quando necessário.
-- Respostas 401, 403 e 404 da API são tratadas explicitamente.
-
-## Fontes
-
-- Documentação oficial da API do SUAP: https://suap.ifrn.edu.br/api/docs/
-- Clientes oficiais do IFRN para API do SUAP: https://github.com/IFRN/suapi
-- Cliente OAuth2 SUAP Django oficial do IFRN: https://github.com/ifrn-oficial/cliente_suap_django
-- Cliente OAuth2 SUAP JavaScript oficial do IFRN: https://github.com/ifrn-oficial/cliente_suap_javascript
-
-
-## Administradores
-
-`ADMIN_SUAP_USERS` aceita uma lista separada por vírgulas. Para tornar a configuração robusta a diferenças no retorno do SUAP, a aplicação compara os seguintes identificadores retornados por `/api/rh/eu/`: `username`, `matricula`, `registration`, `id`, `pk`, `identificacao` e `email`.
-
-Exemplo:
-
-```text
-ADMIN_SUAP_USERS=alba.lopes,2813232
-```
+Se a documentação atual do `/api/docs/` alterar o caminho de uma coleção, basta ajustar a respectiva variável `SUAP_ENDPOINT_*` no Portainer; não é necessário alterar a lógica de sincronização.

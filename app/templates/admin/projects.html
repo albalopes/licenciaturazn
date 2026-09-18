@@ -1,29 +1,45 @@
 {% extends 'admin/base.html' %}
 {% block title %}Projetos · Administração{% endblock %}
 {% block admin_content %}
-<div class="admin-header"><div><span class="eyebrow">Pesquisa · Ensino · Extensão</span><h1>Projetos</h1><p class="admin-subtitle">Cadastre projetos do curso e marque os projetos que pertencem ao PIBID.</p></div></div>
-<div class="admin-grid-two">
-<form class="admin-form admin-card" method="post">
-<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-<h2>Novo projeto</h2>
-<label>Título<input name="title" required></label>
-<label>Sigla<input name="acronym" placeholder="Ex.: PIBID Informática"></label>
-<label>Categoria<select name="project_type" required><option value="pesquisa">Pesquisa</option><option value="ensino">Ensino</option><option value="extensao">Extensão</option></select></label>
-<label>Descrição<textarea name="description" rows="5" required></textarea></label>
-<label>Objetivos<textarea name="objectives" rows="4"></textarea></label>
-<label>Coordenador(a)<input name="coordinator"></label>
-<label>Equipe<textarea name="team" rows="3" placeholder="Bolsistas, voluntários e demais participantes"></textarea></label>
-<label>Período<input name="period" placeholder="2026–2027"></label>
-<label>Situação<input name="status" value="Em andamento"></label>
-<label>Apoio/financiamento<input name="funding"></label>
-<label>Parceiros<input name="partners"></label>
-<label>Link externo<input name="url" type="url"></label>
-<label>Imagem (URL)<input name="image_url" type="url"></label>
-<div class="check-row"><label><input type="checkbox" name="is_pibid"> Projeto do PIBID</label><label><input type="checkbox" name="featured"> Destaque</label><label><input type="checkbox" name="published" checked> Publicado</label></div>
-<button class="btn btn-primary" type="submit">Cadastrar projeto</button>
+<div class="admin-header"><div><span class="eyebrow">Pesquisa · Ensino · Extensão</span><h1>Projetos</h1><p class="admin-subtitle">Projetos do Campus Natal-Zona Norte sincronizados com a API atual do SUAP. A indicação de participação de estudantes da Licenciatura é mantida pela Coordenação.</p></div></div>
+
+<form class="admin-search" method="get">
+  <input name="q" value="{{ q }}" placeholder="Buscar por título, coordenador, campus ou descrição...">
+  <select name="tipo"><option value="">Todos os tipos</option><option value="pesquisa" {% if project_type=='pesquisa' %}selected{% endif %}>Pesquisa</option><option value="ensino" {% if project_type=='ensino' %}selected{% endif %}>Ensino</option><option value="extensao" {% if project_type=='extensao' %}selected{% endif %}>Extensão</option></select>
+  <select name="licenciatura"><option value="">Licenciatura: todos</option><option value="sim" {% if licenciatura=='sim' %}selected{% endif %}>Sim</option><option value="nao" {% if licenciatura=='nao' %}selected{% endif %}>Não</option><option value="pendente" {% if licenciatura=='pendente' %}selected{% endif %}>Não informado</option></select>
+  <select name="source"><option value="">Todas as fontes</option><option value="suap" {% if source=='suap' %}selected{% endif %}>SUAP</option><option value="manual" {% if source=='manual' %}selected{% endif %}>Manual</option></select>
+  <input name="status" value="{{ status }}" placeholder="Situação (ex.: andamento)">
+  <button class="btn btn-outline">Filtrar</button>
 </form>
-<div class="admin-card admin-table"><h2>Projetos cadastrados</h2><table><thead><tr><th>Projeto</th><th>Categoria</th><th>PIBID</th><th>Status</th><th></th></tr></thead><tbody>
-{% for project in projects %}<tr><td><strong>{{ project.title }}</strong>{% if project.acronym %}<br><small>{{ project.acronym }}</small>{% endif %}</td><td>{{ project.project_type|capitalize }}</td><td>{{ 'Sim' if project.is_pibid else 'Não' }}</td><td>{{ 'Publicado' if project.published else 'Rascunho' }}</td><td><form method="post" action="{{ url_for('admin.delete_project', project_id=project.id) }}" onsubmit="return confirm('Excluir este projeto?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline" type="submit">Excluir</button></form></td></tr>{% else %}<tr><td colspan="5">Nenhum projeto cadastrado.</td></tr>{% endfor %}
-</tbody></table></div>
+
+<div class="admin-grid-two">
+  <div class="admin-card admin-form">
+    <h2>Sincronizar com o SUAP</h2>
+    <p>A sincronização consulta as coleções de Pesquisa, Ensino e Extensão da API <code>/api/</code>, percorre todas as páginas disponíveis e mantém somente os registros do Campus Natal-Zona Norte. Não utiliza <code>/api/v2</code>.</p>
+    <form method="post" action="{{ url_for('admin.sync_projects_suap') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary">Sincronizar projetos do SUAP</button></form>
+  </div>
+  <form class="admin-form admin-card" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <h2>Novo projeto manual</h2>
+    <div class="form-grid">
+      <label>Título<input name="title" required></label><label>Sigla<input name="acronym"></label>
+      <label>Categoria<select name="project_type" required><option value="pesquisa">Pesquisa</option><option value="ensino">Ensino</option><option value="extensao">Extensão</option></select></label>
+      <label>Campus<input name="campus" value="Natal-Zona Norte"></label><label>Ano<input name="academic_year" type="number"></label><label>Situação<input name="status" value="Em andamento"></label>
+    </div>
+    <label>Descrição<textarea name="description" rows="4" required></textarea></label><label>Objetivos<textarea name="objectives" rows="3"></textarea></label>
+    <div class="form-grid"><label>Coordenador(a)<input name="coordinator"></label><label>Período<input name="period"></label><label>Fomento<input name="funding"></label><label>Parceiros<input name="partners"></label><label>Link<input name="url" type="url"></label><label>Imagem<input name="image_url" type="url"></label></div>
+    <label>Equipe<textarea name="team" rows="3"></textarea></label>
+    <label>Participação de alunos da Licenciatura<select name="has_licenciatura_students"><option value="">Não informado</option><option value="true">Sim</option><option value="false">Não</option></select></label>
+    <label>Observação sobre alunos<textarea name="licenciatura_notes" rows="2"></textarea></label>
+    <div class="check-row"><label><input type="checkbox" name="is_pibid"> PIBID</label><label><input type="checkbox" name="featured"> Destaque</label><label><input type="checkbox" name="published" checked> Publicado</label></div>
+    <button class="btn btn-primary">Cadastrar projeto</button>
+  </form>
 </div>
+
+<div class="admin-table"><h2>Projetos cadastrados</h2><table><thead><tr><th>Projeto</th><th>Categoria</th><th>Campus</th><th>Fonte</th><th>Situação</th><th>Licenciatura</th><th>Ações</th></tr></thead><tbody>
+{% for project in projects.items %}
+<tr><td><strong>{{ project.title }}</strong>{% if project.acronym %}<br><small>{{ project.acronym }}</small>{% endif %}</td><td>{{ project.project_type|capitalize }}</td><td>{{ project.campus or '—' }}</td><td>{{ project.source_system|upper }}</td><td>{{ project.status or '—' }}</td><td>{{ 'Sim' if project.has_licenciatura_students is true else ('Não' if project.has_licenciatura_students is false else 'Não informado') }}</td><td><a class="btn-link" href="{{ url_for('admin.edit_resource', resource='projetos', object_id=project.id) }}">Editar</a> <form style="display:inline" method="post" action="{{ url_for('admin.delete_project', project_id=project.id) }}" onsubmit="return confirm('Excluir este projeto?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn-link danger">Excluir</button></form></td></tr>
+{% else %}<tr><td colspan="7">Nenhum projeto encontrado.</td></tr>{% endfor %}
+</tbody></table></div>
+{% include 'admin/_pagination.html' with context %}
 {% endblock %}

@@ -76,6 +76,8 @@ class Teacher(db.Model):
     __tablename__ = "teachers"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(180), nullable=False)
+    suap_id = db.Column(db.String(80), index=True)
+    siape = db.Column(db.String(50), index=True)
     photo_url = db.Column(db.String(500))
     email = db.Column(db.String(180))
     lattes_url = db.Column(db.String(500))
@@ -128,6 +130,11 @@ class GovernanceMember(db.Model):
     role = db.Column(db.String(120))
     term = db.Column(db.String(80))
     document_url = db.Column(db.String(500))
+    siape = db.Column(db.String(50), index=True)
+    substitute = db.Column(db.Boolean, default=False, nullable=False)
+    semester = db.Column(db.String(20), index=True)
+    governance_document_id = db.Column(db.Integer, db.ForeignKey("governance_documents.id"))
+    document = db.relationship("GovernanceDocument", back_populates="members")
     active = db.Column(db.Boolean, default=True, nullable=False)
 
 
@@ -153,3 +160,4 @@ class FAQ(db.Model):
 
 from .knowledge import KnowledgeChunk, KnowledgeSource
 from .project import Project
+from .governance import GovernanceDocument, TeacherHistory

@@ -1,0 +1,22 @@
+{% extends 'admin/base.html' %}
+{% block title %}Editar {{ config.label }}{% endblock %}
+{% block admin_content %}
+<div class="admin-header"><div><span class="eyebrow">Administração</span><h1>Editar {{ config.label }}</h1></div><a class="btn btn-outline" href="{{ url_for('admin.' + RESOURCE_ENDPOINTS[resource]) if RESOURCE_ENDPOINTS is defined else url_for('admin.dashboard') }}">Voltar</a></div>
+<form class="admin-form" method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div class="form-grid">
+{% for field,label,kind in config.fields %}
+{% set value = obj|attr(field) %}
+<label>{{ label }}
+{% if kind == 'textarea' %}<textarea name="{{ field }}" rows="5">{{ value or '' }}</textarea>
+{% elif kind == 'checkbox' %}<input type="checkbox" name="{{ field }}" {% if value %}checked{% endif %}>
+{% elif kind == 'nullable_checkbox' %}<select name="{{ field }}"><option value="">Não informado</option><option value="true" {% if value is sameas true %}selected{% endif %}>Sim</option><option value="false" {% if value is sameas false and value is not none %}selected{% endif %}>Não</option></select>
+{% elif kind == 'matrix' %}<select name="{{ field }}">{% for m in matrices %}<option value="{{ m.id }}" {% if value==m.id %}selected{% endif %}>{{ m.year }} — {{ m.title }}</option>{% endfor %}</select>
+{% elif kind == 'date' %}<input type="date" name="{{ field }}" value="{{ value.strftime('%Y-%m-%d') if value else '' }}">
+{% elif kind == 'datetime' %}<input type="datetime-local" name="{{ field }}" value="{{ value.strftime('%Y-%m-%dT%H:%M') if value else '' }}">
+{% else %}<input type="{{ kind }}" name="{{ field }}" value="{{ value or '' }}">{% endif %}
+</label>
+{% endfor %}
+</div><button class="btn btn-primary">Salvar alterações</button>
+</form>
+{% endblock %}
