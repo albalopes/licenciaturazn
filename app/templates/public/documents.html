@@ -1,0 +1,8 @@
+{% extends 'layouts/base.html' %}
+{% block title %}Documentos e normativos · Licenciatura em Informática{% endblock %}
+{% block content %}
+<section class="page-header"><div class="container"><span class="eyebrow">Referências</span><h1>Documentos e normativos</h1><p>PPCs, Organização Didática e outros documentos usados como referência no portal.</p></div></section>
+<section class="section"><div class="container card-grid three">
+{% for d in documents %}<article class="content-section"><span class="badge">{{ d.category }}</span><h2>{{ d.title }}</h2><p>{{ d.description }}</p><a class="btn btn-outline" href="{{ d.url }}" target="_blank" rel="noopener">Consultar documento →</a></article>{% else %}<div class="empty">Nenhum documento publicado.</div>{% endfor %}
+</div></section>
+{% endblock %}

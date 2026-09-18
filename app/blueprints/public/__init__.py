@@ -78,6 +78,12 @@ def entrances():
     return render_template("public/entrances.html", entries=EntranceSchedule.query.filter_by(published=True).order_by(EntranceSchedule.year.desc()).all())
 
 
+@bp.get("/documentos")
+def documents():
+    from app.models import Document
+    return render_template("public/documents.html", documents=Document.query.filter_by(published=True).order_by(Document.category, Document.title).all())
+
+
 @bp.get("/faq")
 def faq():
     from app.models import FAQ

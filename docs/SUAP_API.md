@@ -83,3 +83,14 @@ Todas são protegidas por login e o token OAuth2 permanece no backend/sessão do
 - Clientes oficiais do IFRN para API do SUAP: https://github.com/IFRN/suapi
 - Cliente OAuth2 SUAP Django oficial do IFRN: https://github.com/ifrn-oficial/cliente_suap_django
 - Cliente OAuth2 SUAP JavaScript oficial do IFRN: https://github.com/ifrn-oficial/cliente_suap_javascript
+
+
+## Administradores
+
+`ADMIN_SUAP_USERS` aceita uma lista separada por vírgulas. Para tornar a configuração robusta a diferenças no retorno do SUAP, a aplicação compara os seguintes identificadores retornados por `/api/rh/eu/`: `username`, `matricula`, `registration`, `id`, `pk`, `identificacao` e `email`.
+
+Exemplo:
+
+```text
+ADMIN_SUAP_USERS=alba.lopes,2813232
+```

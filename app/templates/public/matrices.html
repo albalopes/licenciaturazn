@@ -1,2 +1,20 @@
-{% extends 'layouts/base.html' %}{% block title %}Matrizes curriculares{% endblock %}
-{% block content %}<section class="page-header"><div class="container"><span class="eyebrow">Currículo</span><h1>Matrizes curriculares</h1><p>Consulte a estrutura correspondente ao seu vínculo acadêmico.</p></div></section><section class="section"><div class="container"><div class="card-grid three">{% for matrix in matrices %}<a class="matrix-card" href="{{ url_for('public.matrix_detail', year=matrix.year) }}"><span class="badge">{{ matrix.status|capitalize }}</span><span class="matrix-year">{{ matrix.year }}</span><h2>{{ matrix.title }}</h2><p>{{ matrix.description or '' }}</p><div class="matrix-meta"><span>{{ matrix.duration_semesters }} semestres</span>{% if matrix.total_hours %}<span>{{ matrix.total_hours }}h</span>{% endif %}</div></a>{% endfor %}</div></div></section>{% endblock %}
+{% extends 'layouts/base.html' %}
+{% block title %}Matrizes curriculares{% endblock %}
+{% block content %}
+<section class="page-header"><div class="container"><span class="eyebrow">Currículo</span><h1>Matrizes curriculares</h1><p>Consulte a estrutura correspondente ao seu vínculo acadêmico. O portal mantém separadas as matrizes de 2012 e 2018.</p></div></section>
+<section class="section"><div class="container"><div class="card-grid three">
+{% for matrix in matrices %}
+  {% if matrix.is_published %}
+  <a class="matrix-card" href="{{ url_for('public.matrix_detail', year=matrix.year) }}">
+  {% else %}
+  <article class="matrix-card">
+  {% endif %}
+    <span class="badge">{{ matrix.status|capitalize }}</span>
+    <span class="matrix-year">{{ matrix.year }}</span>
+    <h2>{{ matrix.title }}</h2><p>{{ matrix.description or '' }}</p>
+    <div class="matrix-meta"><span>{{ matrix.duration_semesters }} semestres previstos</span>{% if matrix.total_hours %}<span>{{ matrix.total_hours }}h</span>{% endif %}</div>
+    {% if not matrix.is_published %}<p><strong>Aguardando publicação oficial.</strong></p>{% endif %}
+  {% if matrix.is_published %}</a>{% else %}</article>{% endif %}
+{% endfor %}
+</div></div></section>
+{% endblock %}

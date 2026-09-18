@@ -140,6 +140,12 @@ Na inicialização do container, `docker-entrypoint.sh` aguarda o MySQL existent
 
 ## IMPORTANTE — contexto do build
 
+Esta versão já inclui as matrizes 2012 e 2018 com ementas, objetivos, conteúdos, bibliografias e pré-requisitos extraídos dos PPCs fornecidos, além das páginas de TCC, Estágio Docente, ATPA, Estágio extracurricular, Aproveitamento de Estudos e Certificação de Conhecimentos baseadas na Organização Didática 2025.
+
 O `Dockerfile` desta versão está na raiz do repositório. O Portainer deve construir com `context: .` apontando para essa raiz. Se o código estiver dentro de uma subpasta no GitHub, ajuste o contexto para essa subpasta ou mova os arquivos para a raiz.
 
 Durante o build será exibida uma listagem de `/app` e será validada a existência de `app/models/__init__.py`, `project.py` e `knowledge.py`.
+
+
+# Administradores do portal: username, matrícula, id ou e-mail do SUAP, separados por vírgulas.
+ADMIN_SUAP_USERS=
