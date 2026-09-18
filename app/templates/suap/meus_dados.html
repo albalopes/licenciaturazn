@@ -1,0 +1,22 @@
+{% extends "layouts/base.html" %}
+{% block title %}Minha integração com o SUAP{% endblock %}
+{% block content %}
+<section class="hero hero-small">
+  <div>
+    <span class="eyebrow">SUAP</span>
+    <h1>Minha integração acadêmica</h1>
+    <p>Área preparada para consultar, com autorização do usuário, dados disponibilizados pela API do SUAP.</p>
+  </div>
+</section>
+<div class="card">
+  <h2>Consultas disponíveis</h2>
+  <ul>
+    <li>Meus dados</li>
+    <li>Períodos letivos</li>
+    <li>Turmas virtuais</li>
+    <li>Boletim por ano/período</li>
+    <li>Horário por ano/período</li>
+  </ul>
+  <p class="muted">As consultas dependem das permissões concedidas à aplicação no SUAP.</p>
+</div>
+{% endblock %}

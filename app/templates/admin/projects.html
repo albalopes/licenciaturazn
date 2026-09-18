@@ -1,0 +1,29 @@
+{% extends 'admin/base.html' %}
+{% block title %}Projetos · Administração{% endblock %}
+{% block admin_content %}
+<div class="admin-header"><div><span class="eyebrow">Pesquisa · Ensino · Extensão</span><h1>Projetos</h1><p class="admin-subtitle">Cadastre projetos do curso e marque os projetos que pertencem ao PIBID.</p></div></div>
+<div class="admin-grid-two">
+<form class="admin-form admin-card" method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<h2>Novo projeto</h2>
+<label>Título<input name="title" required></label>
+<label>Sigla<input name="acronym" placeholder="Ex.: PIBID Informática"></label>
+<label>Categoria<select name="project_type" required><option value="pesquisa">Pesquisa</option><option value="ensino">Ensino</option><option value="extensao">Extensão</option></select></label>
+<label>Descrição<textarea name="description" rows="5" required></textarea></label>
+<label>Objetivos<textarea name="objectives" rows="4"></textarea></label>
+<label>Coordenador(a)<input name="coordinator"></label>
+<label>Equipe<textarea name="team" rows="3" placeholder="Bolsistas, voluntários e demais participantes"></textarea></label>
+<label>Período<input name="period" placeholder="2026–2027"></label>
+<label>Situação<input name="status" value="Em andamento"></label>
+<label>Apoio/financiamento<input name="funding"></label>
+<label>Parceiros<input name="partners"></label>
+<label>Link externo<input name="url" type="url"></label>
+<label>Imagem (URL)<input name="image_url" type="url"></label>
+<div class="check-row"><label><input type="checkbox" name="is_pibid"> Projeto do PIBID</label><label><input type="checkbox" name="featured"> Destaque</label><label><input type="checkbox" name="published" checked> Publicado</label></div>
+<button class="btn btn-primary" type="submit">Cadastrar projeto</button>
+</form>
+<div class="admin-card admin-table"><h2>Projetos cadastrados</h2><table><thead><tr><th>Projeto</th><th>Categoria</th><th>PIBID</th><th>Status</th><th></th></tr></thead><tbody>
+{% for project in projects %}<tr><td><strong>{{ project.title }}</strong>{% if project.acronym %}<br><small>{{ project.acronym }}</small>{% endif %}</td><td>{{ project.project_type|capitalize }}</td><td>{{ 'Sim' if project.is_pibid else 'Não' }}</td><td>{{ 'Publicado' if project.published else 'Rascunho' }}</td><td><form method="post" action="{{ url_for('admin.delete_project', project_id=project.id) }}" onsubmit="return confirm('Excluir este projeto?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline" type="submit">Excluir</button></form></td></tr>{% else %}<tr><td colspan="5">Nenhum projeto cadastrado.</td></tr>{% endfor %}
+</tbody></table></div>
+</div>
+{% endblock %}

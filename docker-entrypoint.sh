@@ -37,6 +37,9 @@ else:
 PY
 
 echo "Validando estrutura da aplicação..."
+echo "Diretório atual: $(pwd)"
+echo "Conteúdo de /app/app (até 2 níveis):"
+find /app/app -maxdepth 2 -type f | sort || true
 
 # Validação explícita dos módulos essenciais antes de acessar o banco.
 # Isso evita o loop de reinicialização com erros pouco claros e também

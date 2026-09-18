@@ -1,0 +1,17 @@
+{% extends 'layouts/base.html' %}
+{% block title %}{{ project.title }} · Projetos{% endblock %}
+{% block content %}
+<section class="page-header"><div class="container content-narrow"><div class="breadcrumb"><a href="{{ url_for('public.projects') }}">Projetos</a> / {{ project.title }}</div><div class="tag-row"><span class="badge">{{ project.project_type|capitalize }}</span>{% if project.is_pibid %}<span class="badge badge-pibid">PIBID</span>{% endif %}</div><h1>{{ project.title }}</h1>{% if project.acronym %}<p><strong>{{ project.acronym }}</strong></p>{% endif %}</div></section>
+<section class="section"><div class="container content-narrow">
+  <div class="info-grid">
+    <div><small>Coordenação</small><strong>{{ project.coordinator or '—' }}</strong></div>
+    <div><small>Período</small><strong>{{ project.period or '—' }}</strong></div>
+    <div><small>Situação</small><strong>{{ project.status or '—' }}</strong></div>
+  </div>
+  <div class="content-section"><h2>Sobre o projeto</h2><div class="rich-text">{{ project.description|replace('\n','<br>')|safe }}</div></div>
+  {% if project.objectives %}<div class="content-section"><h2>Objetivos</h2><div class="rich-text">{{ project.objectives|replace('\n','<br>')|safe }}</div></div>{% endif %}
+  {% if project.team %}<div class="content-section"><h2>Equipe</h2><div class="rich-text">{{ project.team|replace('\n','<br>')|safe }}</div></div>{% endif %}
+  {% if project.partners or project.funding %}<div class="content-section"><h2>Parcerias e apoio</h2>{% if project.partners %}<p><strong>Parceiros:</strong> {{ project.partners }}</p>{% endif %}{% if project.funding %}<p><strong>Apoio/financiamento:</strong> {{ project.funding }}</p>{% endif %}</div>{% endif %}
+  {% if project.url %}<p><a class="btn btn-primary" href="{{ project.url }}" target="_blank" rel="noopener">Acessar página do projeto</a></p>{% endif %}
+</div></section>
+{% endblock %}

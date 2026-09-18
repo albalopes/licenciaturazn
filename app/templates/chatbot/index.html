@@ -1,0 +1,110 @@
+{% extends 'layouts/base.html' %}
+{% block title %}Assistente da Licenciatura · IFRN-ZN{% endblock %}
+{% block content %}
+<section class="page-header">
+  <div class="container content-narrow">
+    <div class="breadcrumb">Início / Assistente</div>
+    <span class="eyebrow">Consulta documental</span>
+    <h1>Assistente da Licenciatura</h1>
+    <p>Consulte o PPC, a Organização Didática e outros documentos oficiais cadastrados no portal.</p>
+  </div>
+</section>
+<section class="section">
+  <div class="container chatbot-layout">
+    <div class="chat-card">
+      <div class="chat-head">
+        <div><strong>🤖 Assistente acadêmico</strong><small>Respostas baseadas na base documental do curso</small></div>
+        <span class="badge">RAG</span>
+      </div>
+      <div id="chat-messages" class="chat-messages" aria-live="polite">
+        <div class="chat-message bot">
+          <strong>Assistente</strong>
+          <p>Olá! Posso ajudar a localizar informações sobre o curso. Pergunte sobre matriz curricular, TCC, estágio, aproveitamento de estudos, certificação, prazos ou outras regras presentes nos documentos.</p>
+        </div>
+      </div>
+      <form id="chat-form" class="chat-form">
+        <label for="matrix-year">Matriz (opcional)</label>
+        <select id="matrix-year" name="matrix_year">
+          <option value="">Todas as matrizes/documentos</option>
+          <option value="2012">2012</option>
+          <option value="2018">2018</option>
+          <option value="2026">2026</option>
+        </select>
+        <div class="chat-input-row">
+          <input id="question" name="question" maxlength="1200" autocomplete="off" placeholder="Ex.: Como funciona o aproveitamento de estudos?" required>
+          <button class="btn btn-primary" type="submit">Perguntar</button>
+        </div>
+      </form>
+    </div>
+    <aside class="chat-side">
+      <div class="content-section">
+        <h2>Experimente perguntar</h2>
+        <div class="question-list">
+          <button type="button" data-question="Qual é o prazo máximo para concluir o curso?">Prazo máximo para concluir o curso</button>
+          <button type="button" data-question="Como funciona o aproveitamento de estudos?">Aproveitamento de estudos</button>
+          <button type="button" data-question="Como funciona o TCC?">Trabalho de Conclusão de Curso</button>
+          <button type="button" data-question="Quais são as regras do estágio?">Estágio</button>
+        </div>
+      </div>
+      <div class="content-section note-box">
+        <h2>Importante</h2>
+        <p>O assistente é uma ferramenta de consulta. Em situações que exigem análise de documentos individuais ou decisão administrativa, confirme a orientação com a Coordenação do Curso.</p>
+      </div>
+    </aside>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+const form = document.getElementById('chat-form');
+const messages = document.getElementById('chat-messages');
+const question = document.getElementById('question');
+const matrixYear = document.getElementById('matrix-year');
+
+function addMessage(kind, title, text, sources=[]) {
+  const div = document.createElement('div');
+  div.className = 'chat-message ' + kind;
+  const strong = document.createElement('strong'); strong.textContent = title;
+  const p = document.createElement('p'); p.textContent = text;
+  div.appendChild(strong); div.appendChild(p);
+  if (sources.length) {
+    const box = document.createElement('div'); box.className = 'chat-sources';
+    const label = document.createElement('small'); label.textContent = 'Fontes consultadas'; box.appendChild(label);
+    sources.forEach(src => {
+      const item = document.createElement('div');
+      item.textContent = `${src.title}${src.page ? ' — p. ' + src.page : ''}`;
+      box.appendChild(item);
+    });
+    div.appendChild(box);
+  }
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const text = question.value.trim();
+  if (!text) return;
+  addMessage('user', 'Você', text);
+  question.value = '';
+  const loading = document.createElement('div'); loading.className = 'chat-message bot'; loading.textContent = 'Consultando os documentos…'; messages.appendChild(loading);
+  try {
+    const response = await fetch('{{ url_for("chatbot.ask") }}', {
+      method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+      body: JSON.stringify({question: text, matrix_year: matrixYear.value || null})
+    });
+    const data = await response.json();
+    loading.remove();
+    if (!response.ok) throw new Error(data.error || 'Não foi possível consultar o assistente.');
+    addMessage('bot', 'Assistente', data.answer, data.sources || []);
+  } catch (error) {
+    loading.remove();
+    addMessage('bot', 'Assistente', error.message);
+  }
+});
+
+document.querySelectorAll('[data-question]').forEach(button => {
+  button.addEventListener('click', () => { question.value = button.dataset.question; question.focus(); });
+});
+</script>
+{% endblock %}

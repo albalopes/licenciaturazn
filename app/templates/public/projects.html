@@ -1,0 +1,28 @@
+{% extends 'layouts/base.html' %}
+{% block title %}Projetos · Licenciatura em Informática{% endblock %}
+{% block content %}
+<section class="page-header"><div class="container content-narrow"><div class="breadcrumb">Início / Projetos</div><span class="eyebrow">Pesquisa · Ensino · Extensão</span><h1>Projetos</h1><p>Conheça projetos desenvolvidos por docentes e estudantes da Licenciatura em Informática.</p></div></section>
+<section class="section">
+  <div class="container">
+    <div class="project-tabs">
+      <a class="project-tab {{ 'active' if not selected_type else '' }}" href="{{ url_for('public.projects') }}">Todos</a>
+      <a class="project-tab {{ 'active' if selected_type == 'pesquisa' else '' }}" href="{{ url_for('public.projects', tipo='pesquisa') }}">Pesquisa</a>
+      <a class="project-tab {{ 'active' if selected_type == 'ensino' else '' }}" href="{{ url_for('public.projects', tipo='ensino') }}">Ensino</a>
+      <a class="project-tab {{ 'active' if selected_type == 'extensao' else '' }}" href="{{ url_for('public.projects', tipo='extensao') }}">Extensão</a>
+      <a class="project-tab pibid-tab" href="{{ url_for('public.pibid') }}">PIBID</a>
+    </div>
+    <div class="project-grid">
+      {% for project in projects %}
+      <a class="project-card" href="{{ url_for('public.project_detail', project_id=project.id) }}">
+        <div class="project-card-top"><span class="badge">{{ project.project_type|capitalize }}</span>{% if project.is_pibid %}<span class="badge badge-pibid">PIBID</span>{% endif %}</div>
+        <h2>{{ project.title }}</h2>
+        {% if project.acronym %}<div class="project-acronym">{{ project.acronym }}</div>{% endif %}
+        <p>{{ project.description|truncate(220) }}</p>
+        <div class="project-meta">{% if project.period %}<span>{{ project.period }}</span>{% endif %}{% if project.status %}<span>{{ project.status }}</span>{% endif %}</div>
+        <span class="card-link">Ver projeto →</span>
+      </a>
+      {% else %}<div class="empty">Nenhum projeto publicado nesta categoria.</div>{% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

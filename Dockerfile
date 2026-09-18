@@ -1,25 +1,34 @@
 FROM python:3.13-slim
 
-WORKDIR /app
-
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PORT=5003
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+WORKDIR /app
 
-COPY . .
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
-# Falha durante o build se o pacote de modelos não estiver no contexto
-# enviado ao Docker/Portainer. Isso evita descobrir o problema somente
-# quando o container já estiver em loop de reinicialização.
-RUN test -f /app/app/__init__.py \
+# O projeto precisa estar na raiz do contexto de build.
+COPY . /app
+
+# Diagnóstico durante o build: se o Portainer estiver usando outro
+# branch, outra pasta ou outro contexto, o build falha mostrando o conteúdo recebido.
+RUN echo '=== LICENCIATURA ZN: VALIDACAO DO BUILD ===' \
+    && echo 'Diretorio de trabalho:' \
+    && pwd \
+    && echo 'Conteudo da raiz:' \
+    && find /app -maxdepth 2 -type f | sort \
+    && echo '--- validando pacote app ---' \
+    && test -f /app/app/__init__.py \
     && test -f /app/app/models/__init__.py \
     && test -f /app/app/models/project.py \
-    && test -f /app/app/models/knowledge.py
+    && test -f /app/app/models/knowledge.py \
+    && echo 'OK: estrutura app/models encontrada.' \
+    && python -c "import app.models; print('OK: import app.models realizado durante o build.')"
 
-RUN chmod +x docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 5003
 

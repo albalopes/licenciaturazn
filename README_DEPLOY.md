@@ -137,3 +137,9 @@ No Portainer, faça o redeploy/pull da Stack para buscar a nova versão.
 ### Inicialização automática do banco
 
 Na inicialização do container, `docker-entrypoint.sh` aguarda o MySQL existente ficar disponível e executa `python seed.py` antes de iniciar o Gunicorn. O seed usa `db.create_all()` para criar as tabelas ausentes e foi escrito para não duplicar os registros demonstrativos já existentes. O MySQL continua sendo um container externo conectado pela `database_network`.
+
+## IMPORTANTE — contexto do build
+
+O `Dockerfile` desta versão está na raiz do repositório. O Portainer deve construir com `context: .` apontando para essa raiz. Se o código estiver dentro de uma subpasta no GitHub, ajuste o contexto para essa subpasta ou mova os arquivos para a raiz.
+
+Durante o build será exibida uma listagem de `/app` e será validada a existência de `app/models/__init__.py`, `project.py` e `knowledge.py`.

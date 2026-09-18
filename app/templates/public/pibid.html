@@ -1,0 +1,10 @@
+{% extends 'layouts/base.html' %}
+{% block title %}PIBID · Licenciatura em Informática{% endblock %}
+{% block content %}
+<section class="page-header"><div class="container content-narrow"><div class="breadcrumb">Início / Projetos / PIBID</div><span class="eyebrow">Programa Institucional de Bolsa de Iniciação à Docência</span><h1>PIBID</h1><p>Espaço específico para projetos, ações, orientações e registros relacionados ao PIBID da Licenciatura em Informática.</p></div></section>
+<section class="section"><div class="container">
+  <div class="pibid-banner"><div><span class="eyebrow">Projeto em destaque</span><h2>PIBID — Informática</h2><p>Reúna aqui informações sobre subprojetos, bolsistas, orientações, escolas parceiras, atividades e resultados.</p></div><a class="btn btn-outline" href="{{ url_for('public.projects') }}?tipo=ensino">Ver projetos de ensino</a></div>
+  <div class="section-heading"><span class="eyebrow">Projetos vinculados</span><h2>Projetos e ações do PIBID</h2></div>
+  <div class="project-grid">{% for project in projects %}<a class="project-card" href="{{ url_for('public.project_detail', project_id=project.id) }}"><div class="project-card-top"><span class="badge badge-pibid">PIBID</span><span class="badge">{{ project.project_type|capitalize }}</span></div><h2>{{ project.title }}</h2><p>{{ project.description|truncate(220) }}</p><span class="card-link">Ver projeto →</span></a>{% else %}<div class="empty">Ainda não há projetos do PIBID publicados. Cadastre-os pela área administrativa.</div>{% endfor %}</div>
+</div></section>
+{% endblock %}
