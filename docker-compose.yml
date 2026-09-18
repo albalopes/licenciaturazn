@@ -1,0 +1,53 @@
+name: licenciaturazn
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: licenciaturazn_web
+    restart: unless-stopped
+    environment:
+      FLASK_ENV: production
+      PORT: ${PORT:-5003}
+      DB_STARTUP_RETRIES: ${DB_STARTUP_RETRIES:-30}
+      DB_STARTUP_RETRY_DELAY: ${DB_STARTUP_RETRY_DELAY:-2}
+      SECRET_KEY: ${SECRET_KEY:?Defina SECRET_KEY nas variáveis da Stack}
+      DATABASE_URL: ${DATABASE_URL:?Defina DATABASE_URL apontando para o MySQL existente}
+
+      # SUAP OAuth2 / API
+      SUAP_BASE_URL: ${SUAP_BASE_URL:-https://suap.ifrn.edu.br}
+      SUAP_AUTH_URL: ${SUAP_AUTH_URL:-https://suap.ifrn.edu.br/o/authorize/}
+      SUAP_TOKEN_URL: ${SUAP_TOKEN_URL:-https://suap.ifrn.edu.br/o/token/}
+      SUAP_API_BASE_URL: ${SUAP_API_BASE_URL:-https://suap.ifrn.edu.br/api/}
+      SUAP_CLIENT_ID: ${SUAP_CLIENT_ID:-}
+      SUAP_CLIENT_SECRET: ${SUAP_CLIENT_SECRET:-}
+      SUAP_REDIRECT_URI: ${SUAP_REDIRECT_URI:-http://localhost:5003/auth/suap/callback}
+      SUAP_SCOPE: ${SUAP_SCOPE:-read}
+      SUAP_ENDPOINT_ME: ${SUAP_ENDPOINT_ME:-rh/eu/}
+      SUAP_ENDPOINT_PERIODS: ${SUAP_ENDPOINT_PERIODS:-ensino/periodos/}
+      SUAP_ENDPOINT_MY_LINKS: ${SUAP_ENDPOINT_MY_LINKS:-rh/meus-vinculos/}
+      SUAP_ENDPOINT_MY_DATA: ${SUAP_ENDPOINT_MY_DATA:-rh/meus-dados/}
+      SUAP_ENDPOINT_STUDENT_DATA: ${SUAP_ENDPOINT_STUDENT_DATA:-ensino/meus-dados-aluno/}
+      SUAP_ENDPOINT_VIRTUAL_CLASSES: ${SUAP_ENDPOINT_VIRTUAL_CLASSES:-meu-diario/turmas-virtuais/}
+      SUAP_ENDPOINT_REPORT: ${SUAP_ENDPOINT_REPORT:-meu-diario/boletim/{year}/{period}/}
+      SUAP_ENDPOINT_SCHEDULE: ${SUAP_ENDPOINT_SCHEDULE:-meu-diario/horario/{year}/{period}/}
+      ADMIN_SUAP_USERS: ${ADMIN_SUAP_USERS:-}
+
+      # Assistente documental / OpenAI (opcional)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-luna}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      KNOWLEDGE_UPLOAD_DIR: ${KNOWLEDGE_UPLOAD_DIR:-knowledge_documents}
+    expose:
+      - "5003"
+    networks:
+      - proxy_network
+      - database_network
+
+networks:
+  proxy_network:
+    external: true
+  database_network:
+    external: true
