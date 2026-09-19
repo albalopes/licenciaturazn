@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse, parse_qs
 
 import requests
 from flask import current_app, session
@@ -139,3 +139,15 @@ def my_schedule(year: int, period: int):
 def api_get_custom(endpoint: str, params: dict | None = None):
     """Consulta genérica para qualquer endpoint documentado pelo SUAP."""
     return api_get(endpoint, params=params)
+
+
+def api_get_url(url: str):
+    """Consulta uma URL `next` fornecida pelo próprio SUAP, mantendo o token."""
+    base = urlparse(current_app.config["SUAP_BASE_URL"])
+    target = urlparse(url)
+    if target.netloc and target.netloc != base.netloc:
+        raise SuapOAuthError("SUAP next URL points to an unexpected host.")
+    endpoint = target.path
+    if endpoint.startswith("/api/"):
+        endpoint = endpoint[len("/api/"):]
+    return api_get(endpoint, params={k: v[-1] for k, v in parse_qs(target.query).items()})

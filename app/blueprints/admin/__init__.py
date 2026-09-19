@@ -339,7 +339,7 @@ def sync_projects_suap():
     if errors:
         flash(f"Sincronização parcial: {len(imported)} projeto(s) importado(s). {'; '.join(errors)}", "warning")
     else:
-        flash(f"Sincronização concluída: {len(imported)} projeto(s) do Campus Natal-Zona Norte importado(s) a partir da API /api/.", "success")
+        flash(f"Sincronização concluída: {len(imported)} projeto(s) de Pesquisa/Extensão do Campus Natal-Zona Norte importado(s) a partir da API /api/.", "success")
     return redirect(url_for("admin.projects"))
 
 
@@ -370,8 +370,7 @@ def import_governance_document():
 @bp.post("/docentes/sincronizar-suap")
 @admin_required
 def sync_teacher_photos():
-    from app.services.governance import _server_photo_map
-    photos = _server_photo_map()
+    from app.services.governance import _server_photo_map, _server_summary
     updated = 0
     for teacher in Teacher.query.all():
         siapes = set()
@@ -381,12 +380,20 @@ def sync_teacher_photos():
             siapes.add(str(teacher.suap_id))
         siapes.update(str(m.siape) for m in GovernanceMember.query.filter_by(name=teacher.name).all() if m.siape)
         for siape in siapes:
-            if photos.get(siape):
-                teacher.photo_url = photos[siape]
+            data = _server_summary(siape)
+            if not data:
+                continue
+            teacher.email = data.get('email') or teacher.email
+            photo = data.get('foto') or data.get('foto_url') or data.get('url_foto')
+            if photo:
+                photo = str(photo)
+                if not photo.startswith(('http://', 'https://', 'data:')):
+                    photo = current_app.config['SUAP_BASE_URL'].rstrip('/') + '/' + photo.lstrip('/')
+                teacher.photo_url = photo
                 teacher.siape = teacher.siape or siape
                 teacher.suap_id = teacher.suap_id or siape
                 updated += 1
-                break
+            break
     db.session.commit()
     flash(f"Fotos sincronizadas com o SUAP: {updated} docente(s) atualizado(s).", "success")
     return redirect(url_for("admin.teachers"))

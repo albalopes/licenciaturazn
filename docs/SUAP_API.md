@@ -1,44 +1,51 @@
 # Integração com a API atual do SUAP
 
-A integração deste projeto usa a API disponível em `https://suap.ifrn.edu.br/api/docs/` e a base `https://suap.ifrn.edu.br/api/`.
+A integração deste projeto utiliza exclusivamente a API atual em `/api/` documentada em `https://suap.ifrn.edu.br/api/docs/` e no `/api/openapi.json`.
 
-> **Importante:** esta versão do projeto não utiliza mais rotas `/api/v2/`.
+## Endpoints confirmados na documentação fornecida em 18/09/2026
 
-## Projetos
+### Gestão de Pessoas
 
-A sincronização administrativa consulta as coleções atuais configuradas para:
+- `GET /api/rh/servidores/` — coleção de servidores.
+- `GET /api/rh/servidores_funcao_ativa/` — servidores com função ativa.
+- `GET /api/rh/servidores/detalhado/` — dados detalhados de servidores.
+- `GET /api/rh/servidores/integra/` — dados de servidores com escopo do Integra.
+- `GET /api/rh/servidor-resumido/?matricula={matricula}` — dados resumidos de um servidor.
 
-- Pesquisa: `pesquisa/projetos/`
-- Extensão: `pesquisa/extensao/` (com `extensao/projetos/` como fallback configurável)
-- Ensino: `ensino/projetos/` (com `ensino/projetos-ensino/` como fallback configurável)
+O schema documentado para `servidor-resumido` contém `matricula`, `nome`, `campus`, `email` e `foto`. O documento de referência também registra que esse endpoint pode responder `403 Permission denied`, portanto a disponibilidade da foto depende das permissões do usuário/token.
 
-A aplicação pagina as respostas usando `limit` e `offset` até percorrer a coleção disponível. Depois filtra pelo Campus Natal-Zona Norte.
+### Pesquisa
 
-Os campos retornados pelo SUAP são normalizados para o modelo local de projetos. Como os nomes dos campos podem variar entre módulos, a implementação aceita aliases para título, campus, situação, período, coordenador, equipe, URL etc.
+- `GET /api/pesquisa/projetos/` — projetos de pesquisa.
 
-A sincronização **não sobrescreve** as marcações editoriais feitas na área restrita, especialmente:
+### Extensão
 
-- `is_pibid`;
-- `has_licenciatura_students`;
-- `licenciatura_notes`;
-- `featured`;
-- `published`.
+- `GET /api/extensao/projetos/` — projetos de extensão.
 
-Assim, a Coordenação pode sincronizar os dados oficiais do SUAP e manter manualmente a informação de participação de estudantes da Licenciatura em Informática.
+### Ensino
 
-## Servidores e fotos
+A documentação fornecida não apresenta um endpoint de projetos de ensino. Ela apresenta os recursos de ensino acadêmico, como diários, disciplinas, materiais, trabalhos, alunos e portal de professores, mas não um recurso `projetos`.
 
-O endpoint configurado para servidores é `rh/servidores/`. A rotina percorre as páginas disponíveis e procura a fotografia pelos campos conhecidos da resposta (`foto`, `foto_url`, `url_foto`, `imagem`, entre outros).
+Por isso o sistema **não inventa** um endpoint de projetos de ensino. Projetos de ensino continuam podendo ser cadastrados/gerenciados manualmente no portal até que o SUAP disponibilize esse recurso na API documentada.
 
-As fotos são atualizadas:
+## Sincronização de projetos
 
-1. quando uma nova portaria do Colegiado/NDE é importada pela área restrita;
-2. quando o administrador usa **Sincronizar fotos com SUAP** na área de docentes.
+A rotina:
 
-A identificação preferencial é a matrícula/SIAPE extraída da portaria.
+1. consulta os endpoints atuais de Pesquisa e Extensão;
+2. percorre a paginação retornada pela API (`results`, `count` e `next`);
+3. mantém somente projetos do Campus Natal-Zona Norte;
+4. mantém somente projetos ativos/em andamento;
+5. atualiza os dados do SUAP sem sobrescrever `has_licenciatura_students` e `licenciatura_notes`, que são informações mantidas pela Coordenação.
 
-## OAuth
+Nenhuma rota `/api/v2/` é utilizada.
 
-O consumo dos endpoints protegidos ocorre com o token OAuth2 do usuário autenticado no SUAP. A aplicação já mantém o fluxo de autorização, renovação do token e os endpoints configuráveis em `app/config.py` e nas variáveis da Stack.
+## Fotos dos docentes
 
-Se a documentação atual do `/api/docs/` alterar o caminho de uma coleção, basta ajustar a respectiva variável `SUAP_ENDPOINT_*` no Portainer; não é necessário alterar a lógica de sincronização.
+Ao importar uma portaria, o sistema usa a matrícula/SIAPE extraída do PDF e consulta:
+
+`GET /api/rh/servidor-resumido/?matricula={matricula}`
+
+Quando o SUAP devolver o campo `foto`, ele é associado ao cadastro do docente. O botão **Sincronizar fotos com SUAP** repete essa consulta para os docentes cadastrados.
+
+Se o SUAP devolver `403`, o docente permanece cadastrado normalmente, mas a foto não é atualizada. Isso não é tratado como falha da importação da portaria.

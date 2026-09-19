@@ -148,4 +148,4 @@ Na administração, o menu **Projetos** permite cadastrar título, sigla, catego
 
 
 ### API do SUAP
-A integração de projetos e fotos de servidores utiliza a API atual documentada em `https://suap.ifrn.edu.br/api/docs/` e não utiliza mais `/api/v2/`.
+A integração de projetos e fotos de servidores utiliza exclusivamente a API atual documentada em `https://suap.ifrn.edu.br/api/docs/`. Os endpoints confirmados são Pesquisa (`/api/pesquisa/projetos/`), Extensão (`/api/extensao/projetos/`) e servidor resumido (`/api/rh/servidor-resumido/?matricula=...`). A documentação fornecida não apresenta endpoint de Projetos de Ensino; por isso Ensino permanece disponível para cadastro manual. Nenhuma rota `/api/v2/` é utilizada.

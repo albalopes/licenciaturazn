@@ -1,26 +1,21 @@
 from datetime import datetime
+from urllib.parse import urlparse, parse_qs
 
 from app.extensions import db
 from app.models import Project
-from app.services.suap import SuapOAuthError, api_get_custom
+from app.services.suap import api_get_custom, api_get_url
 from flask import current_app
 
 CAMPUS_ALIASES = (
-    'natal-zona-norte',
-    'natal zona norte',
-    'natal zona norte - zn',
-    'natal zona norte (zn)',
-    'zona norte',
-    'zn',
+    'natal-zona-norte', 'natal zona norte', 'natal zona norte - zn',
+    'natal zona norte (zn)', 'zona norte', 'zn',
 )
 
-# Rotas da API /api/ atualmente usadas pela aplicação. Alguns ambientes do SUAP
-# podem expor a mesma coleção com pequena variação de caminho; os aliases abaixo
-# mantêm a sincronização resiliente sem voltar a usar /api/v2.
-ENDPOINT_ALIASES = {
-    'pesquisa': ('pesquisa/projetos/',),
-    'extensao': ('pesquisa/extensao/', 'extensao/projetos/'),
-    'ensino': ('ensino/projetos/', 'ensino/projetos-ensino/'),
+# Endpoints confirmados no /api/openapi.json fornecido pelo SUAP em 18/09/2026.
+# A documentação atual não apresenta endpoint de Projetos de Ensino.
+ENDPOINTS = {
+    'pesquisa': 'pesquisa/projetos/',
+    'extensao': 'extensao/projetos/',
 }
 
 
@@ -30,8 +25,8 @@ def _text(item, *keys):
         if value in (None, ''):
             continue
         if isinstance(value, dict):
-            nested = value.get('nome') or value.get('name') or value.get('descricao') or value.get('description') or value.get('label') or value.get('value')
-            if nested not in (None, ''):
+            nested = next((value.get(k) for k in ('nome', 'name', 'descricao', 'description', 'label', 'value') if value.get(k) not in (None, '')), None)
+            if nested is not None:
                 return nested
         if isinstance(value, (list, tuple)):
             return ', '.join(str(v.get('nome') or v.get('name') or v) if isinstance(v, dict) else str(v) for v in value)
@@ -40,27 +35,24 @@ def _text(item, *keys):
 
 
 def _campus_match(value):
-    s = str(value or '').lower().replace('_', ' ').replace('-', ' ')
-    configured = str(current_app.config.get('SUAP_PROJECT_CAMPUS', 'Natal-Zona-Norte')).lower().replace('-', ' ')
-    configured = ' '.join(configured.split())
-    if configured and configured in ' '.join(s.split()):
-        return True
-    return any(' '.join(alias.replace('-', ' ').split()) in ' '.join(s.split()) for alias in CAMPUS_ALIASES)
+    s = ' '.join(str(value or '').lower().replace('_', ' ').replace('-', ' ').split())
+    configured = ' '.join(str(current_app.config.get('SUAP_PROJECT_CAMPUS', 'Natal-Zona-Norte')).lower().replace('-', ' ').split())
+    return bool(configured and configured in s) or any(' '.join(a.replace('-', ' ').split()) in s for a in CAMPUS_ALIASES)
 
 
 def _normalize_status(value):
     if isinstance(value, dict):
-        return _text(value, 'descricao', 'nome', 'label', 'value')
+        return str(_text(value, 'descricao', 'nome', 'label', 'value') or '').strip()
     return str(value or '').strip()
 
 
 def _is_active(item):
-    status = _normalize_status(_text(item, 'status', 'situacao', 'situacao_projeto', 'estado', 'status_projeto')).lower()
-    if any(x in status for x in ('cancel', 'finaliz', 'conclu', 'arquiv', 'inativ', 'encerr')):
-        return False
     for key in ('ativo', 'active', 'em_execucao', 'em_andamento'):
         if key in item and item[key] is not None:
             return bool(item[key])
+    status = _normalize_status(_text(item, 'situacao', 'status', 'situacao_projeto', 'estado', 'status_projeto')).lower()
+    if any(x in status for x in ('cancel', 'finaliz', 'conclu', 'arquiv', 'inativ', 'encerr')):
+        return False
     end = _text(item, 'data_fim', 'fim', 'data_final', 'end_date', 'data_termino')
     if end:
         try:
@@ -102,62 +94,50 @@ def _normalize(item, ptype):
     )
 
 
-def _results_page(endpoint, offset, limit=100):
-    data = api_get_custom(endpoint, {'limit': limit, 'offset': offset})
-    if isinstance(data, list):
-        return data, None
-    return data.get('results', []), data.get('count')
-
-
-def _fetch_all(endpoint_candidates, limit=100):
-    last_error = None
-    for endpoint in endpoint_candidates:
-        if endpoint and endpoint.lstrip('/').startswith('v2/'):
-            last_error = RuntimeError('Endpoint /api/v2 ignorado: a aplicação utiliza somente a API atual documentada em /api/docs.')
+def _fetch_all(endpoint, page_size=100):
+    """Percorre a paginação da API atual documentada pelo SUAP."""
+    results_all = []
+    seen_ids = set()
+    next_url = None
+    page = 1
+    for _ in range(1000):
+        data = api_get_url(next_url) if next_url else api_get_custom(endpoint, {'page': page})
+        results = data if isinstance(data, list) else data.get('results', [])
+        if not results:
+            break
+        added = 0
+        for item in results:
+            ident = _text(item, 'id', 'pk', 'codigo', 'numero', 'projeto_id')
+            key = str(ident) if ident not in (None, '') else repr(item)
+            if key not in seen_ids:
+                seen_ids.add(key)
+                results_all.append(item)
+                added += 1
+        next_url = data.get('next') if isinstance(data, dict) else None
+        if next_url:
+            page += 1
             continue
-        try:
-            all_results = []
-            offset = 0
-            while True:
-                results, count = _results_page(endpoint, offset, limit)
-                all_results.extend(results)
-                if not results:
-                    break
-                offset += len(results)
-                if count is not None and offset >= int(count):
-                    break
-                if len(results) < limit:
-                    break
-                if offset > 100000:
-                    break
-            return all_results, endpoint
-        except (SuapOAuthError, Exception) as exc:
-            last_error = exc
-            continue
-    if last_error:
-        raise last_error
-    return [], endpoint_candidates[0]
+        count = data.get('count') if isinstance(data, dict) else None
+        if count is not None and len(results_all) >= int(count):
+            break
+        if len(results) < page_size or added == 0:
+            break
+        page += 1
+    return results_all
 
 
 def sync_projects():
-    configured = {
-        'pesquisa': current_app.config.get('SUAP_ENDPOINT_PROJECTS_RESEARCH'),
-        'extensao': current_app.config.get('SUAP_ENDPOINT_PROJECTS_EXTENSION'),
-        'ensino': current_app.config.get('SUAP_ENDPOINT_PROJECTS_TEACHING'),
-    }
     imported = []
     errors = []
-    for ptype in ('pesquisa', 'ensino', 'extensao'):
-        candidates = [configured[ptype]] if configured[ptype] else []
-        for candidate in ENDPOINT_ALIASES[ptype]:
-            if candidate not in candidates:
-                candidates.append(candidate)
+    for ptype, endpoint in ENDPOINTS.items():
         try:
-            results, used_endpoint = _fetch_all(candidates)
+            results = _fetch_all(endpoint)
         except Exception as exc:
             errors.append(f'{ptype}: {exc}')
             continue
         for raw in results:
+            if not _is_active(raw):
+                continue
             item = _normalize(raw, ptype)
             if not _campus_match(item['campus']) or not item['title']:
                 continue
@@ -170,8 +150,7 @@ def sync_projects():
                 project = Project(source_system='suap', **item)
                 db.session.add(project)
             else:
-                # Preserve annotations managed in the portal (PIBID, vínculo com a
-                # Licenciatura, destaque e publicação) while refreshing SUAP data.
+                # Nunca sobrescrever as anotações feitas pela Coordenação.
                 for key, value in item.items():
                     setattr(project, key, value)
                 project.source_system = 'suap'

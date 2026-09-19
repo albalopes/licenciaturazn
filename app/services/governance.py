@@ -150,8 +150,47 @@ def parse_governance_pdf(path: str | Path, body: str):
                     members.append({'siape': siape, 'name': name, 'role': role, 'substitute': substitute, 'atuacao': atuacao_semesters[:marks] if atuacao_semesters and marks else []})
     return {'number': number, 'issued_at': issued_at, 'semester': semester, 'members': members, 'text': text}
 
-def _server_photo_map():
+def _server_summary(matricula):
+    """Consulta o endpoint documentado /api/rh/servidor-resumido/.
+
+    O schema documentado no SUAP retorna matrícula, nome, campus, e-mail e foto.
+    Alguns usuários podem receber 403 nesse endpoint; nesse caso retornamos None
+    para que a importação da portaria continue sem interromper o processo.
+    """
+    try:
+        data = api_get_custom(
+            'rh/servidor-resumido/',
+            {'matricula': str(matricula)},
+        )
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def _server_photo_map(identifiers=None):
+    """Obtém fotos por matrícula usando o endpoint oficial documentado.
+
+    Primeiro tenta /rh/servidor-resumido/?matricula=..., que documenta
+    explicitamente o campo `foto`. Se nenhum identificador for informado,
+    percorre /rh/servidores/ como fallback.
+    """
     photos = {}
+    ids = [str(x) for x in (identifiers or []) if x not in (None, '')]
+
+    if ids:
+        for ident in ids:
+            data = _server_summary(ident)
+            if not data:
+                continue
+            photo = data.get('foto') or data.get('foto_url') or data.get('url_foto')
+            if photo:
+                photo = str(photo)
+                if not photo.startswith(('http://', 'https://', 'data:')):
+                    photo = current_app.config['SUAP_BASE_URL'].rstrip('/') + '/' + photo.lstrip('/')
+                photos[ident] = photo
+        return photos
+
+    # Fallback para a coleção de servidores, caso ela esteja autorizada.
     offset = 0
     limit = 100
     while True:
@@ -163,15 +202,15 @@ def _server_photo_map():
         if not results:
             break
         for item in results:
-            ids = [item.get(k) for k in ('matricula', 'siape', 'id', 'identificacao')]
             photo = next((item.get(k) for k in ('foto', 'foto_url', 'url_foto', 'imagem', 'image', 'url_imagem', 'foto_servidor') if item.get(k)), None)
-            if photo:
-                photo = str(photo)
-                if not photo.startswith(('http://', 'https://')):
-                    photo = current_app.config['SUAP_BASE_URL'].rstrip('/') + '/' + photo.lstrip('/')
-                for ident in ids:
-                    if ident not in (None, ''):
-                        photos[str(ident)] = photo
+            if not photo:
+                continue
+            photo = str(photo)
+            if not photo.startswith(('http://', 'https://', 'data:')):
+                photo = current_app.config['SUAP_BASE_URL'].rstrip('/') + '/' + photo.lstrip('/')
+            for ident in (item.get('matricula'), item.get('siape'), item.get('id'), item.get('identificacao')):
+                if ident not in (None, ''):
+                    photos[str(ident)] = photo
         offset += len(results)
         count = data.get('count') if isinstance(data, dict) else None
         if count is not None and offset >= int(count):
@@ -188,7 +227,6 @@ def import_governance(path, body, title=None, document_url=None):
         issued_at=parsed['issued_at'], semester=parsed['semester'], document_url=document_url,
         file_path=str(path), active=True,
     )
-    photo_map = _server_photo_map()
     GovernanceDocument.query.filter_by(body=body, active=True).update({'active': False})
     db.session.add(doc)
     db.session.flush()
@@ -214,8 +252,15 @@ def import_governance(path, body, title=None, document_url=None):
                     teacher.siape = item['siape']
                 if hasattr(teacher, 'suap_id'):
                     teacher.suap_id = item['siape']
-            if photo_map.get(str(item['siape'])):
-                teacher.photo_url = photo_map[str(item['siape'])]
+            server_data = _server_summary(item['siape']) if item['siape'] else None
+            if server_data:
+                teacher.email = server_data.get('email') or teacher.email
+                photo = server_data.get('foto') or server_data.get('foto_url') or server_data.get('url_foto')
+                if photo:
+                    photo = str(photo)
+                    if not photo.startswith(('http://', 'https://', 'data:')):
+                        photo = current_app.config['SUAP_BASE_URL'].rstrip('/') + '/' + photo.lstrip('/')
+                    teacher.photo_url = photo
 
             semesters = item.get('atuacao') or [parsed['semester']]
             for term in semesters:

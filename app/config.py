@@ -34,8 +34,8 @@ class Config:
     SUAP_ENDPOINT_PERIODS = os.getenv("SUAP_ENDPOINT_PERIODS", "ensino/periodos/")
     SUAP_ENDPOINT_SERVERS = os.getenv("SUAP_ENDPOINT_SERVERS", "rh/servidores/")
     SUAP_ENDPOINT_PROJECTS_RESEARCH = os.getenv("SUAP_ENDPOINT_PROJECTS_RESEARCH", "pesquisa/projetos/")
-    SUAP_ENDPOINT_PROJECTS_EXTENSION = os.getenv("SUAP_ENDPOINT_PROJECTS_EXTENSION", "pesquisa/extensao/")
-    SUAP_ENDPOINT_PROJECTS_TEACHING = os.getenv("SUAP_ENDPOINT_PROJECTS_TEACHING", "ensino/projetos/")
+    SUAP_ENDPOINT_PROJECTS_EXTENSION = os.getenv("SUAP_ENDPOINT_PROJECTS_EXTENSION", "extensao/projetos/")
+    SUAP_ENDPOINT_PROJECTS_TEACHING = os.getenv("SUAP_ENDPOINT_PROJECTS_TEACHING", "")
     SUAP_PROJECT_CAMPUS = os.getenv("SUAP_PROJECT_CAMPUS", "Natal-Zona Norte")
     # Endpoints de diário permanecem configuráveis para acompanhar mudanças da documentação.
     SUAP_ENDPOINT_VIRTUAL_CLASSES = os.getenv("SUAP_ENDPOINT_VIRTUAL_CLASSES", "meu-diario/turmas-virtuais/")

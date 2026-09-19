@@ -15,7 +15,7 @@
 <div class="admin-grid-two">
   <div class="admin-card admin-form">
     <h2>Sincronizar com o SUAP</h2>
-    <p>A sincronização consulta as coleções de Pesquisa, Ensino e Extensão da API <code>/api/</code>, percorre todas as páginas disponíveis e mantém somente os registros do Campus Natal-Zona Norte. Não utiliza <code>/api/v2</code>.</p>
+    <p>A sincronização consulta os endpoints documentados de <strong>Pesquisa</strong> e <strong>Extensão</strong> na API atual <code>/api/</code>, percorre a paginação e mantém somente projetos ativos do Campus Natal-Zona Norte. A documentação fornecida do SUAP não apresenta um endpoint de projetos de Ensino; esses projetos podem ser cadastrados manualmente. Não utiliza <code>/api/v2</code>.</p>
     <form method="post" action="{{ url_for('admin.sync_projects_suap') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary">Sincronizar projetos do SUAP</button></form>
   </div>
   <form class="admin-form admin-card" method="post">
