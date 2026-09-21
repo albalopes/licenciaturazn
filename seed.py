@@ -26,6 +26,7 @@ from app.models import (
     CourseCoordinator,
     AcademicPublication,
     FAQ,
+    EntranceSchedule,
 )
 
 
