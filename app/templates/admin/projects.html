@@ -15,8 +15,18 @@
 <div class="admin-grid-two">
   <div class="admin-card admin-form">
     <h2>Sincronizar com o SUAP</h2>
-    <p>A sincronização consulta os endpoints documentados de <strong>Pesquisa</strong> e <strong>Extensão</strong> na API atual <code>/api/</code>, percorre a paginação e mantém somente projetos ativos do Campus Natal-Zona Norte. A documentação fornecida do SUAP não apresenta um endpoint de projetos de Ensino; esses projetos podem ser cadastrados manualmente. Não utiliza <code>/api/v2</code>.</p>
-    <form method="post" action="{{ url_for('admin.sync_projects_suap') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary">Sincronizar projetos do SUAP</button></form>
+    <p>A API documentada do SUAP expõe os projetos de <strong>Pesquisa</strong> e <strong>Extensão</strong> com paginação. O endpoint documentado não oferece filtros de campus ou período; por isso o portal busca um número controlado de páginas e aplica os filtros localmente. <strong>Ensino</strong> continua disponível para cadastro manual porque não há endpoint de projetos de Ensino documentado na API fornecida.</p>
+    <form method="post" action="{{ url_for('admin.sync_projects_suap') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-grid">
+        <label>Tipos a importar<br><span><input type="checkbox" name="project_types" value="pesquisa" checked> Pesquisa</span><span><input type="checkbox" name="project_types" value="extensao" checked> Extensão</span></label>
+        <label>Ano inicial<input type="number" name="start_year" min="2000" max="2100" placeholder="Ex.: 2024"></label>
+        <label>Ano final<input type="number" name="end_year" min="2000" max="2100" placeholder="Ex.: 2026"></label>
+        <label>Páginas máximas por tipo<input type="number" name="max_pages" min="1" max="100" value="5"></label>
+      </div>
+      <p class="admin-help">Campus usado no filtro: <strong>Natal-Zona Norte (ZN)</strong>. Se o período for antigo, aumente o número de páginas, pois a API fornece apenas <code>page</code>.</p>
+      <button class="btn btn-primary">Solicitar importação</button>
+    </form>
   </div>
   <form class="admin-form admin-card" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

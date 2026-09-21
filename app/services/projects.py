@@ -105,13 +105,19 @@ def _normalize(item, ptype):
     )
 
 
-def _fetch_all(endpoint):
-    """Percorre a paginação real da API atual do SUAP (`page`, `next`, `count`)."""
+def _fetch_pages(endpoint, max_pages=5):
+    """Busca somente um número controlado de páginas da API.
+
+    A documentação atual do SUAP expõe apenas o parâmetro `page` para os
+    endpoints de projetos; campus e período são filtrados localmente.
+    Isso evita que uma sincronização administrativa percorra toda a base.
+    """
     results_all = []
     seen_ids = set()
     next_url = None
     page = 1
-    for _ in range(1000):
+    max_pages = max(1, min(int(max_pages or 5), 100))
+    for _ in range(max_pages):
         data = api_get_url(next_url) if next_url else api_get_custom(endpoint, {'page': page})
         results = data if isinstance(data, list) else data.get('results', [])
         if not results:
@@ -125,30 +131,43 @@ def _fetch_all(endpoint):
         if not isinstance(data, dict):
             break
         next_url = data.get('next')
-        if next_url:
-            continue
-        count = data.get('count')
-        if count is not None and len(results_all) < int(count):
+        if not next_url:
+            count = data.get('count')
+            if count is None or len(results_all) >= int(count):
+                break
             page += 1
             continue
-        break
-    return results_all
+        # The `next` URL already contains the next page.
+    return results_all, next_url
 
-def sync_projects():
+
+def sync_projects(project_types=None, start_year=None, end_year=None, max_pages=5, campus="Natal-Zona-Norte"):
+    current_app.config["SUAP_PROJECT_CAMPUS"] = campus or current_app.config.get("SUAP_PROJECT_CAMPUS", "Natal-Zona-Norte")
     imported = []
     errors = []
-    for ptype, endpoint in ENDPOINTS.items():
+    project_types = [p for p in (project_types or list(ENDPOINTS)) if p in ENDPOINTS]
+    stats = {p: {'fetched': 0, 'matched': 0, 'imported': 0} for p in project_types}
+    for ptype in project_types:
+        endpoint = ENDPOINTS[ptype]
         try:
-            results = _fetch_all(endpoint)
+            results, next_url = _fetch_pages(endpoint, max_pages=max_pages)
         except Exception as exc:
             errors.append(f'{ptype}: {exc}')
             continue
+        stats[ptype]['fetched'] = len(results)
         for raw in results:
-            if not _is_active(raw):
-                continue
             item = _normalize(raw, ptype)
-            if not _campus_match(item['campus']) or not item['title']:
+            if not item['title'] or not _campus_match(item['campus']):
                 continue
+            if start_year is not None or end_year is not None:
+                year = item.get('academic_year')
+                if year is None:
+                    continue
+                if start_year is not None and year < start_year:
+                    continue
+                if end_year is not None and year > end_year:
+                    continue
+            stats[ptype]['matched'] += 1
             project = None
             if item['suap_id']:
                 project = Project.query.filter_by(suap_id=item['suap_id'], project_type=ptype).first()
@@ -158,11 +177,12 @@ def sync_projects():
                 project = Project(source_system='suap', **item)
                 db.session.add(project)
             else:
-                # Nunca sobrescrever as anotações feitas pela Coordenação.
                 for key, value in item.items():
                     setattr(project, key, value)
                 project.source_system = 'suap'
             project.published = True
             imported.append(project)
+            stats[ptype]['imported'] += 1
     db.session.commit()
-    return imported, errors
+    return imported, errors, stats
+

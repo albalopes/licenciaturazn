@@ -15,4 +15,6 @@ class MemoriaWork(db.Model):
     work_type = db.Column(db.String(120), default="Trabalho de Conclusão de Curso")
     synced_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     published_at = db.Column(db.DateTime)
-    active = db.Column(db.Boolean, default=True, nullable=False)
+    active = db.Column(db.Boolean, default=False, nullable=False)
+    accepted = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    accepted_at = db.Column(db.DateTime)

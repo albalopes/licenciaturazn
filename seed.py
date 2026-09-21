@@ -41,7 +41,10 @@ def ensure_schema():
             "siape": "VARCHAR(50) NULL", "substitute": "BOOLEAN NOT NULL DEFAULT 0",
             "semester": "VARCHAR(20) NULL", "governance_document_id": "INTEGER NULL",
         },
-        "teachers": {"suap_id": "VARCHAR(80) NULL", "siape": "VARCHAR(50) NULL", "ingresso_disciplina": "VARCHAR(180) NULL"},
+        "teachers": {"suap_id": "VARCHAR(80) NULL", "siape": "VARCHAR(50) NULL", "ingresso_disciplina": "VARCHAR(180) NULL", "merged_into_id": "INTEGER NULL"},
+        "memoria_works": {
+            "accepted": "BOOLEAN NOT NULL DEFAULT 1", "accepted_at": "DATETIME NULL",
+        },
         "projects": {
             "suap_id": "VARCHAR(80) NULL", "source_system": "VARCHAR(40) NOT NULL DEFAULT 'manual'",
             "campus": "VARCHAR(120) NULL", "academic_year": "INTEGER NULL",
@@ -55,6 +58,8 @@ def ensure_schema():
         for column, ddl in columns.items():
             if column not in existing:
                 db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+    if "memoria_works" in inspector.get_table_names():
+        db.session.execute(text("UPDATE memoria_works SET accepted = 1 WHERE accepted = 0 AND active = 1"))
     db.session.commit()
 
 
@@ -284,17 +289,16 @@ def seed_pages():
     upsert_page(
         "vida-academica", "Vida acadêmica", "Vida acadêmica",
         """
-        <p>Se você está organizando sua vida acadêmica, aqui estão reunidas as orientações que mais costumam fazer diferença: integralização curricular, prática profissional, TCC, ATPA, aproveitamento de estudos, certificação de conhecimentos, estágio extracurricular, assistência estudantil e calendário acadêmico.</p>
-        <div class="card-grid three">
+        <p>Se você está organizando sua vida acadêmica, aqui estão reunidas as orientações que mais costumam fazer diferença: TCC, estágio docente, estágio extracurricular, ATPA, aproveitamento de estudos, certificação de conhecimentos, assistência estudantil e horários.</p>
+        <div class="academic-grid">
           <a class="feature-card" href="/pagina/tcc"><h3>TCC</h3><p>Regras específicas das matrizes e normas institucionais atuais.</p></a>
           <a class="feature-card" href="/pagina/estagio-docente"><h3>Estágio docente</h3><p>Etapas, carga horária e atividades previstas nos PPCs.</p></a>
+          <a class="feature-card" href="/pagina/estagio-extracurricular"><h3>Estágio extracurricular</h3><p>Regras e procedimentos para estágio não obrigatório.</p></a>
           <a class="feature-card" href="/pagina/atpa"><h3>ATPA</h3><p>Atividades de aprofundamento e documentação.</p></a>
-          <a class="feature-card" href="/pagina/aproveitamento-de-estudos"><h3>Aproveitamento</h3><p>Critérios e documentos conforme a Organização Didática 2025.</p></a>
+          <a class="feature-card" href="/pagina/aproveitamento-de-estudos"><h3>Aproveitamento de estudos</h3><p>Critérios e documentos conforme a Organização Didática 2025.</p></a>
           <a class="feature-card" href="/pagina/certificacao-de-conhecimentos"><h3>Certificação de conhecimentos</h3><p>Avaliação, limites e procedimentos.</p></a>
-          <a class="feature-card" href="/pagina/estagio-extracurricular"><h3>Estágio extracurricular</h3><p>Como a atividade aparece nos PPCs e na integralização.</p></a>
+          <a class="feature-card" href="/pagina/assistencia-estudantil"><h3>Assistência estudantil</h3><p>Programas, editais e orientações para permanência no curso.</p></a>
           <a class="feature-card" href="/horarios"><h3>Horários</h3><p>Veja a grade semanal das turmas da Licenciatura.</p></a>
-          <a class="feature-card" href="/faq"><h3>Dúvidas frequentes</h3><p>Respostas rápidas sobre matrícula, ingresso, TCC e vida acadêmica.</p></a>
-          <a class="feature-card" href="https://portal.ifrn.edu.br/campus/natalzonanorte/ensino/calendario-academico/" target="_blank" rel="noopener"><h3>Calendário acadêmico</h3><p>Consulte o calendário vigente diretamente no Campus Natal-Zona Norte.</p></a>
         </div>
         """,
     )
@@ -545,6 +549,48 @@ def seed_entrances():
         item.shift=shift; item.matrix_year=matrix_year; item.notes=notes; item.published=True
 
 
+def _normalize_person_name(value):
+    import re, unicodedata
+    text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii").lower()
+    return re.sub(r"[^a-z0-9 ]+", " ", text).strip()
+
+
+def reconcile_teacher_schedule_links():
+    """Vincula registros do horário a docentes já existentes, evitando duplicatas por variação do nome."""
+    from difflib import SequenceMatcher
+    teachers = Teacher.query.all()
+    changed = 0
+    for assignment in TeachingAssignment.query.all():
+        current = Teacher.query.get(assignment.teacher_id) if assignment.teacher_id else None
+        target_name = assignment.teacher_name or (current.name if current else "")
+        if not target_name:
+            continue
+        norm = _normalize_person_name(target_name)
+        candidates = [t for t in teachers if t.active and t.merged_into_id is None]
+        exact = next((t for t in candidates if _normalize_person_name(t.name) == norm), None)
+        if exact is None and norm:
+            scored = []
+            tokens = set(norm.split())
+            for t in candidates:
+                tn = _normalize_person_name(t.name)
+                tt = set(tn.split())
+                score = SequenceMatcher(None, norm, tn).ratio()
+                if tokens and tokens.issubset(tt):
+                    score += 0.20
+                scored.append((score, t))
+            if scored:
+                score, best = max(scored, key=lambda x: x[0])
+                if score >= 0.86:
+                    exact = best
+        if exact and (assignment.teacher_id != exact.id or assignment.teacher_name != exact.name):
+            assignment.teacher_id = exact.id
+            assignment.teacher_name = exact.name
+            changed += 1
+    if changed:
+        db.session.commit()
+    return changed
+
+
 def seed_teaching_schedule():
     path = BASE / "data" / "licenciatura_horarios_2026_2.json"
     if not path.exists():
@@ -579,6 +625,19 @@ def seed_teaching_schedule():
                 source="horário 2026.2 ZN - turmas v4.pdf",
             ))
 
+def auto_merge_known_teacher_duplicates():
+    """Resolve duplicatas conhecidas do histórico de horários/portarias."""
+    from app.services.governance import merge_teacher_records
+    pairs = [
+        ("Cleverton", "Cleverton Hentz Antunes"),
+    ]
+    for source_name, target_name in pairs:
+        source = Teacher.query.filter(Teacher.name.ilike(source_name)).first()
+        target = Teacher.query.filter(Teacher.name.ilike(target_name)).first()
+        if source and target and source.id != target.id and source.merged_into_id != target.id:
+            merge_teacher_records(source, target)
+
+
 with app.app_context():
     db.create_all()
     ensure_schema()
@@ -586,6 +645,9 @@ with app.app_context():
     db.session.flush()
     load_catalog()
     seed_teaching_schedule()
+    reconcile_teacher_schedule_links()
+    auto_merge_known_teacher_duplicates()
+    reconcile_teacher_schedule_links()
     seed_coordinators()
     seed_pages()
     seed_faqs()
@@ -654,6 +716,8 @@ with app.app_context():
         if TeacherHistory.query.filter_by(teacher_id=teacher.id).first():
             teacher.active = teacher.name in current_names
 
+    auto_merge_known_teacher_duplicates()
+    reconcile_teacher_schedule_links()
     db.session.commit()
     print("Seed concluído: matrizes 2009/2012/2018, ementas, pré-requisitos, governança e páginas acadêmicas carregados.")
 

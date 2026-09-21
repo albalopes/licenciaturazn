@@ -1,6 +1,6 @@
 from functools import wraps
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for, current_app, g, Response
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for, current_app, g, Response, jsonify
 from math import ceil
 from datetime import datetime
 from flask_login import current_user, login_required
@@ -185,7 +185,33 @@ def schedule_management():
     if semester:
         query=query.filter(TeachingAssignment.semester==semester)
     assignments=query.all()
-    return render_template("admin/schedule.html", assignments=assignments, teachers=Teacher.query.filter_by(active=True).order_by(Teacher.name).all(), semester=semester)
+    semesters=[row[0] for row in db.session.query(TeachingAssignment.semester).distinct().order_by(TeachingAssignment.semester.desc()).all()]
+    return render_template("admin/schedule.html", assignments=assignments, teachers=Teacher.query.filter_by(active=True).order_by(Teacher.name).all(), semester=semester, semesters=semesters)
+
+@bp.post("/horarios/<int:assignment_id>/editar")
+@admin_required
+def edit_schedule(assignment_id):
+    item = TeachingAssignment.query.get_or_404(assignment_id)
+    teacher = Teacher.query.get(request.form.get("teacher_id", type=int))
+    if not teacher:
+        flash("Selecione um docente válido.", "danger")
+        return redirect(url_for("admin.schedule_management"))
+    item.teacher_id = teacher.id; item.teacher_name = teacher.name
+    item.semester = request.form["semester"]; item.course = request.form["course"]
+    item.class_code = request.form.get("class_code"); item.weekday = request.form["weekday"]
+    item.start_time = request.form["start_time"]; item.end_time = request.form["end_time"]
+    item.room = request.form.get("room"); item.source = request.form.get("source") or item.source
+    db.session.commit()
+    flash("Registro de horário atualizado.", "success")
+    return redirect(url_for("admin.schedule_management", semestre=request.args.get("semestre", "")))
+
+@bp.post("/horarios/<int:assignment_id>/excluir")
+@admin_required
+def delete_schedule(assignment_id):
+    item = TeachingAssignment.query.get_or_404(assignment_id)
+    db.session.delete(item); db.session.commit()
+    flash("Registro de horário excluído.", "success")
+    return redirect(url_for("admin.schedule_management"))
 
 @bp.post("/horarios/importar-2026-2")
 @admin_required
@@ -216,11 +242,23 @@ def memoria_management():
         from app.services.memoria import sync_memoria
         try:
             result = sync_memoria()
-            flash(f"Memoria sincronizado: {result['created']} novos, {result['updated']} atualizados e {len(result['errors'])} ocorrências com erro.", "success" if not result["errors"] else "warning")
+            flash(f"Busca concluída: {result['pending']} trabalho(s) aguardando aceite. {result['skipped_accepted']} já aceitos foram ignorados.", "success" if not result["errors"] else "warning")
         except Exception as exc:
-            flash(f"Não foi possível sincronizar o Memoria: {exc}", "danger")
-    works = MemoriaWork.query.filter_by(active=True).order_by(MemoriaWork.date.desc(), MemoriaWork.title).all()
-    return render_template("admin/memoria.html", works=works, result=result)
+            flash(f"Não foi possível consultar o Memoria: {exc}", "danger")
+    works = MemoriaWork.query.filter_by(accepted=False).order_by(MemoriaWork.date.desc(), MemoriaWork.title).all()
+    accepted = MemoriaWork.query.filter_by(accepted=True).order_by(MemoriaWork.date.desc(), MemoriaWork.title).all()
+    return render_template("admin/memoria.html", works=works, accepted=accepted, result=result)
+
+@bp.post("/memoria/<int:work_id>/aceitar")
+@admin_required
+def accept_memoria(work_id):
+    from app.services.memoria import accept_memoria_work
+    work = accept_memoria_work(work_id)
+    if not work:
+        flash("Trabalho não encontrado.", "danger")
+    else:
+        flash(f"“{work.title}” foi aceito e importado para o portal.", "success")
+    return redirect(url_for("admin.memoria_management"))
 
 @bp.get("/")
 @admin_required
@@ -303,6 +341,7 @@ def delete_discipline(discipline_id):
 @bp.route("/docentes", methods=["GET", "POST"])
 @admin_required
 def teachers():
+    from sqlalchemy import or_
     if request.method == "POST":
         teacher = Teacher(
             name=request.form["name"], siape=request.form.get("siape"), suap_id=request.form.get("siape"), ingresso_disciplina=request.form.get("ingresso_disciplina"), photo_url=request.form.get("photo_url"), email=request.form.get("email"),
@@ -313,13 +352,82 @@ def teachers():
         db.session.commit()
         flash("Docente cadastrado.", "success")
         return redirect(url_for("admin.teachers"))
-    q=request.args.get("q", "").strip(); ativo=request.args.get("ativo", "").strip().lower(); query=Teacher.query.order_by(Teacher.name)
+    q=request.args.get("q", "").strip(); ativo=request.args.get("ativo", "").strip().lower(); tab=request.args.get("aba", "todos").strip().lower()
+    if tab not in ("todos", "nde", "colegiado"): tab = "todos"
+    query=Teacher.query.filter(Teacher.merged_into_id.is_(None)).order_by(Teacher.name)
     if q:
-        from sqlalchemy import or_
         query=query.filter(or_(Teacher.name.ilike(f"%{q}%"), Teacher.email.ilike(f"%{q}%"), Teacher.siape.ilike(f"%{q}%")))
     if ativo == "sim": query=query.filter_by(active=True)
     elif ativo == "nao": query=query.filter_by(active=False)
-    return render_template("admin/teachers.html", teachers=_paginate(query), q=q)
+
+    def member_teacher_ids(body):
+        ids=set()
+        docs=GovernanceDocument.query.filter_by(body=body, active=True).all()
+        for doc in docs:
+            for member in GovernanceMember.query.filter_by(governance_document_id=doc.id, active=True).all():
+                teacher=None
+                if member.siape:
+                    teacher=Teacher.query.filter(or_(Teacher.siape==str(member.siape), Teacher.suap_id==str(member.siape))).first()
+                if not teacher:
+                    teacher=Teacher.query.filter(Teacher.name.ilike(member.name)).first()
+                if teacher and teacher.merged_into_id is None:
+                    ids.add(teacher.id)
+        return ids
+    nde_ids=member_teacher_ids("nde")
+    colegiado_ids=member_teacher_ids("colegiado")
+    if tab == "nde": query=query.filter(Teacher.id.in_(nde_ids or [-1]))
+    elif tab == "colegiado": query=query.filter(Teacher.id.in_(colegiado_ids or [-1]))
+    pagination=_paginate(query)
+    schedule_counts={t.id: TeachingAssignment.query.filter_by(teacher_id=t.id).count() for t in pagination.items}
+    return render_template("admin/teachers.html", teachers=pagination, q=q, tab=tab, nde_ids=nde_ids, colegiado_ids=colegiado_ids, schedule_counts=schedule_counts)
+
+
+@bp.get("/docentes/suap-buscar")
+@admin_required
+def search_teachers_suap():
+    from app.services.governance import search_servers_suap
+    name=request.args.get("nome", "").strip(); matricula=request.args.get("matricula", "").strip()
+    if not name and not matricula:
+        return jsonify({"results": [], "message": "Informe nome ou matrícula."})
+    try:
+        rows=search_servers_suap(name=name or None, matricula=matricula or None, limit=20)
+        return jsonify({"results": rows})
+    except Exception as exc:
+        return jsonify({"results": [], "message": str(exc)}), 502
+
+
+@bp.post("/docentes/<int:teacher_id>/suap-vincular")
+@admin_required
+def link_teacher_suap(teacher_id):
+    from app.services.governance import search_servers_suap, apply_server_to_teacher
+    teacher=Teacher.query.get_or_404(teacher_id)
+    matricula=request.form.get("matricula", "").strip()
+    try:
+        rows=search_servers_suap(name=request.form.get("nome") or teacher.name, matricula=matricula or None, limit=20)
+        selected=next((r for r in rows if matricula and str(r.get("matricula"))==matricula), None) or (rows[0] if len(rows)==1 else None)
+        if not selected:
+            flash(f"Não foi possível selecionar automaticamente um servidor para {teacher.name}. Foram encontrados {len(rows)} resultado(s); use a busca manual.", "warning")
+        else:
+            apply_server_to_teacher(teacher, selected)
+            db.session.commit()
+            flash(f"{teacher.name} vinculado ao SUAP: matrícula {selected.get('matricula') or '—'}.", "success")
+    except Exception as exc:
+        db.session.rollback(); flash(f"Não foi possível consultar o SUAP: {exc}", "danger")
+    return redirect(url_for("admin.teachers"))
+
+
+@bp.post("/docentes/<int:teacher_id>/mesclar")
+@admin_required
+def merge_teacher(teacher_id):
+    from app.services.governance import merge_teacher_records
+    source=Teacher.query.get_or_404(teacher_id)
+    target=Teacher.query.get_or_404(request.form.get("target_id", type=int))
+    try:
+        merge_teacher_records(source, target)
+        flash(f"Cadastro de {source.name} mesclado em {target.name}. Horários e históricos foram transferidos.", "success")
+    except Exception as exc:
+        db.session.rollback(); flash(f"Não foi possível mesclar os docentes: {exc}", "danger")
+    return redirect(url_for("admin.teachers"))
 
 
 @bp.route("/paginas", methods=["GET", "POST"])
@@ -521,11 +629,19 @@ def delete_resource(resource, object_id):
 @admin_required
 def sync_projects_suap():
     from app.services.projects import sync_projects
-    imported, errors = sync_projects()
-    if errors:
-        flash(f"Sincronização parcial: {len(imported)} projeto(s) importado(s). {'; '.join(errors)}", "warning")
-    else:
-        flash(f"Sincronização concluída: {len(imported)} projeto(s) de Pesquisa/Extensão do Campus Natal-Zona Norte importado(s) a partir da API /api/.", "success")
+    types=request.form.getlist("project_types") or ["pesquisa", "extensao"]
+    start_year=request.form.get("start_year", type=int)
+    end_year=request.form.get("end_year", type=int)
+    max_pages=request.form.get("max_pages", type=int) or 5
+    try:
+        imported, errors, stats = sync_projects(types, start_year, end_year, max_pages)
+        detail='; '.join(f"{k}: {v['imported']} importado(s) de {v['matched']} encontrado(s) no filtro" for k,v in stats.items())
+        if errors:
+            flash(f"Sincronização parcial. {detail}. {'; '.join(errors)}", "warning")
+        else:
+            flash(f"Sincronização concluída — Campus Natal-Zona Norte, {detail}.", "success")
+    except Exception as exc:
+        db.session.rollback(); flash(f"Não foi possível sincronizar projetos: {exc}", "danger")
     return redirect(url_for("admin.projects"))
 
 
@@ -558,7 +674,7 @@ def import_governance_document():
 def sync_teacher_photos():
     from app.services.governance import sync_teacher_data_from_suap
     try:
-        found, updated = sync_teacher_data_from_suap(Teacher.query.all())
+        found, updated = sync_teacher_data_from_suap(Teacher.query.filter(Teacher.merged_into_id.is_(None)).all())
         flash(f"SUAP sincronizado: {updated} docente(s) atualizado(s); {found} encontrado(s) no Campus ZN.", "success")
     except Exception as exc:
         db.session.rollback()

@@ -2,21 +2,22 @@
 {% block title %}Meu ENADE · Licenciatura em Informática{% endblock %}
 {% block content %}
 <section class="page-header"><div class="container content-narrow"><span class="eyebrow">Área do aluno</span><h1>Meu ENADE</h1><p>Resolva questões objetivas de edições anteriores e acompanhe suas respostas e pontuação.</p></div></section>
-<section class="section"><div class="container">{% if demo %}<div class="alert alert-info"><strong>Modo de demonstração.</strong> Os resultados exibidos são fictícios; as respostas estão desabilitadas neste modo.</div>{% endif %}
+<section class="section"><div class="container"><div class="student-nav"><a href="{{ student_url('student.dashboard') }}">Visão geral</a><a href="{{ student_url('student.trajectory') }}">Minha trajetória</a><a href="{{ student_url('student.report') }}">Boletim</a><a href="{{ student_url('student.schedule') }}">Horário</a><a href="{{ student_url('student.classes') }}">Turmas</a><a class="active" href="{{ student_url('student.enade_dashboard') }}">ENADE</a></div>{% if demo %}<div class="alert alert-info"><strong>Modo de demonstração.</strong> Os resultados exibidos são fictícios; as respostas estão desabilitadas neste modo.</div>{% endif %}
   {% if not exam %}<div class="empty">Ainda não há questões importadas. A Coordenação precisa importar as provas na área administrativa.</div>{% else %}
   <div class="toolbar"><div class="filters"><select onchange="location.href='{{ student_url('student.enade_dashboard') }}{% if demo %}&ano={% else %}?ano={% endif %}'+this.value"><option value="">Edição</option>{% for e in exams %}<option value="{{ e.id }}" {% if e.id==exam.id %}selected{% endif %}>{{ e.year }} · {{ e.area }}</option>{% endfor %}</select></div></div>
   <div class="info-grid"><div><small>Questões</small><strong>{{ total }}</strong></div><div><small>Respondidas</small><strong>{{ answered }}</strong></div><div><small>Pontos</small><strong>{{ '%.0f'|format(points) }}</strong></div></div>
   <div class="content-section note-box"><strong>Seu progresso é salvo no sistema.</strong><p>Você pode sair e voltar depois. Cada questão respondida fica associada à sua conta institucional.</p></div>
+  {% if demo and questions and questions[0].id < 0 %}<div class="alert alert-warning"><strong>Modo de teste:</strong> estas são questões demonstrativas para testar a interface. Elas não são questões oficiais do ENADE.</div>{% endif %}
   {% for q in questions %}
   {% set attempt = attempts.get(q.id) %}
   <article class="content-section" id="questao-{{ q.id }}">
     <div class="project-card-top"><span class="badge">Questão {{ q.number }}</span><span class="badge">{{ q.component }}</span>{% if attempt %}<span class="badge">Respondida{% if attempt.is_correct %} · correta{% else %} · incorreta{% endif %}</span>{% endif %}</div>
     <div class="rich-text"><p>{{ q.statement }}</p></div>
     <form method="post" action="{{ url_for('student.answer_question', question_id=q.id) }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% if demo %}<input type="hidden" name="demo" value="1">{% endif %}
       <div class="question-options">
       {% for key, value in (q.options_json|fromjson).items() %}<label><input type="radio" name="option" value="{{ key }}" {% if attempt and attempt.selected_option==key %}checked{% endif %}> <strong>{{ key }})</strong> {{ value }}</label>{% endfor %}
-      </div>{% if demo %}<button class="btn btn-outline" type="button" disabled>Resposta simulada</button>{% else %}<button class="btn btn-primary" type="submit">Salvar resposta</button>{% endif %}
+      </div><button class="btn btn-primary" type="submit">{{ "Registrar resposta simulada" if demo else "Salvar resposta" }}</button>
     </form>
     {% if attempt and q.correct_option %}<p class="answer-feedback">Gabarito: <strong>{{ q.correct_option }}</strong> · Pontos: <strong>{{ '%.0f'|format(attempt.score) }}</strong></p>{% endif %}
   </article>

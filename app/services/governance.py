@@ -357,3 +357,61 @@ def import_governance(path, body, title=None, document_url=None):
     db.session.commit()
     return doc, parsed
 
+
+
+def search_servers_suap(name=None, matricula=None, limit=20):
+    """Busca servidores do Campus ZN por nome e/ou matrícula sem varrer toda a coleção."""
+    params = {'campus': current_app.config.get('SUAP_CAMPUS_SIGLA', 'ZN'), 'page': 1}
+    if name:
+        params['nome'] = name.strip()
+    if matricula:
+        params['matricula'] = str(matricula).strip()
+    data = api_get_custom(current_app.config['SUAP_ENDPOINT_SERVERS'], params)
+    rows = data if isinstance(data, list) else data.get('results', [])
+    return rows[:max(1, min(int(limit or 20), 50))]
+
+
+def apply_server_to_teacher(teacher, data):
+    """Vincula um registro retornado pelo SUAP a um docente já cadastrado."""
+    teacher.siape = str(data.get('matricula') or teacher.siape) if (data.get('matricula') or teacher.siape) else teacher.siape
+    teacher.suap_id = str(data.get('matricula') or data.get('id') or teacher.suap_id) if (data.get('matricula') or data.get('id') or teacher.suap_id) else teacher.suap_id
+    teacher.email = data.get('email') or teacher.email
+    photo = _photo_from_server(data)
+    if photo:
+        teacher.photo_url = photo
+    lattes = data.get('curriculo_lattes') or data.get('lattes_url')
+    if lattes:
+        teacher.lattes_url = str(lattes)
+    ingresso = data.get('disciplina_ingresso')
+    if ingresso:
+        teacher.ingresso_disciplina = str(ingresso)
+    areas = data.get('cargo') or data.get('funcao')
+    if areas and not teacher.areas:
+        teacher.areas = str(areas)
+    return teacher
+
+
+def merge_teacher_records(source, target):
+    """Mescla um cadastro duplicado no cadastro canônico, preservando vínculos."""
+    from app.models import TeachingAssignment, CourseCoordinator
+    if source.id == target.id:
+        raise ValueError('O docente de origem e o docente de destino são o mesmo registro.')
+    # Completa campos ausentes no cadastro de destino.
+    for field in ('siape', 'suap_id', 'photo_url', 'email', 'lattes_url', 'orcid_url', 'education', 'areas', 'ingresso_disciplina', 'bio'):
+        if not getattr(target, field) and getattr(source, field):
+            setattr(target, field, getattr(source, field))
+    for item in TeachingAssignment.query.filter_by(teacher_id=source.id).all():
+        item.teacher_id = target.id
+        item.teacher_name = target.name
+    for item in CourseCoordinator.query.filter_by(teacher_id=source.id).all():
+        item.teacher_id = target.id
+    for item in TeacherHistory.query.filter_by(teacher_id=source.id).all():
+        exists = TeacherHistory.query.filter_by(teacher_id=target.id, semester=item.semester, body=item.body).first()
+        if exists:
+            db.session.delete(item)
+        else:
+            item.teacher_id = target.id
+    source.merged_into_id = target.id
+    source.active = False
+    db.session.commit()
+    return target

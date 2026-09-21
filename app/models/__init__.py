@@ -87,6 +87,8 @@ class Teacher(db.Model):
     ingresso_disciplina = db.Column(db.String(180))
     bio = db.Column(db.Text)
     active = db.Column(db.Boolean, default=True, nullable=False)
+    merged_into_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), index=True)
+    merged_into = db.relationship("Teacher", remote_side=[id], backref=db.backref("merged_teachers", lazy="dynamic"), foreign_keys=[merged_into_id])
 
 
 class TeachingAssignment(db.Model):

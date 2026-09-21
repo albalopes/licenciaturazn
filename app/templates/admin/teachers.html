@@ -1,6 +1,116 @@
-{% extends 'admin/base.html' %}{% block title %}Gerenciar docentes{% endblock %}{% block admin_content %}
-<div class="admin-header"><div><span class="eyebrow">Equipe</span><h1>Docentes</h1><p class="admin-subtitle">Cadastro dos docentes do curso. A sincronização com o SUAP preenche automaticamente e-mail, foto, disciplina de ingresso e Currículo Lattes quando esses dados estiverem disponíveis na API; você pode complementar ou corrigir os campos manualmente.</p></div></div>
-<form class="admin-search" method="get"><input name="q" value="{{ q }}" placeholder="Buscar docente..."><select name="ativo"><option value="">Todos</option><option value="sim" {% if request.args.get('ativo')=='sim' %}selected{% endif %}>Ativos</option><option value="nao" {% if request.args.get('ativo')=='nao' %}selected{% endif %}>Inativos</option></select><button class="btn btn-outline">Filtrar</button></form>
-<form class="admin-form" method="post" action="{{ url_for('admin.sync_teacher_photos') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline">Sincronizar dados e fotos com SUAP</button></form>
+{% extends 'admin/base.html' %}
+{% block title %}Gerenciar docentes{% endblock %}
+{% block admin_content %}
+<div class="admin-header"><div><span class="eyebrow">Equipe</span><h1>Docentes</h1><p class="admin-subtitle">Docentes identificados por portarias, horários e cadastros locais. O vínculo com o SUAP pode ser feito individualmente por nome ou matrícula.</p></div></div>
+
+<div class="teacher-tabs">
+  <a class="teacher-tab {% if tab=='todos' %}active{% endif %}" href="{{ url_for('admin.teachers', aba='todos') }}">Todos os docentes</a>
+  <a class="teacher-tab {% if tab=='nde' %}active{% endif %}" href="{{ url_for('admin.teachers', aba='nde') }}">NDE <span class="teacher-badge">{{ nde_ids|length }}</span></a>
+  <a class="teacher-tab {% if tab=='colegiado' %}active{% endif %}" href="{{ url_for('admin.teachers', aba='colegiado') }}">Colegiado de Curso <span class="teacher-badge">{{ colegiado_ids|length }}</span></a>
+</div>
+
+<form class="admin-search" method="get">
+  <input type="hidden" name="aba" value="{{ tab }}">
+  <input name="q" value="{{ q }}" placeholder="Buscar por nome, e-mail ou matrícula...">
+  <select name="ativo"><option value="">Todos</option><option value="sim" {% if request.args.get('ativo')=='sim' %}selected{% endif %}>Ativos</option><option value="nao" {% if request.args.get('ativo')=='nao' %}selected{% endif %}>Inativos</option></select>
+  <button class="btn btn-outline">Filtrar</button>
+</form>
+
+<div class="admin-card">
+  <h2>Integração com o SUAP</h2>
+  <p class="admin-help">A API atual permite consultar servidores por <strong>nome, campus e matrícula</strong>. A busca individual evita uma varredura de todos os servidores quando você só quer corrigir um docente.</p>
+  <form method="post" action="{{ url_for('admin.sync_teacher_photos') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-outline">Sincronizar docentes já vinculados</button></form>
+</div>
+
+<div class="admin-table"><table><thead><tr><th>Foto</th><th>Nome</th><th>SUAP / SIAPE</th><th>Governança</th><th>Horários</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>
+{% for t in teachers.items %}
+<tr>
+  <td>{% if t.photo_url %}<img src="{{ t.photo_url }}" alt="" style="width:42px;height:42px;object-fit:cover;border-radius:50%">{% else %}—{% endif %}</td>
+  <td><strong>{{ t.name }}</strong>{% if t.merged_into %}<br><small>Mesclado em {{ t.merged_into.name }}</small>{% endif %}</td>
+  <td>{{ t.siape or t.suap_id or 'Não vinculado' }}</td>
+  <td>{% if t.id in nde_ids %}<span class="teacher-badge">NDE</span>{% endif %}{% if t.id in colegiado_ids %}<span class="teacher-badge">Colegiado</span>{% endif %}{% if t.id not in nde_ids and t.id not in colegiado_ids %}—{% endif %}</td>
+  <td>{{ schedule_counts.get(t.id, 0) }}</td>
+  <td>{{ 'Sim' if t.active else 'Não' }}</td>
+  <td><div class="teacher-actions">
+    <a class="btn-link" href="{{ url_for('admin.edit_resource', resource='docentes', object_id=t.id) }}">Editar</a>
+    <button type="button" class="btn-link" data-suap-open data-teacher-id="{{ t.id }}" data-teacher-name="{{ t.name|e }}" data-teacher-matricula="{{ t.siape or '' }}">SUAP</button>
+    <button type="button" class="btn-link" data-merge-open data-teacher-id="{{ t.id }}">Mesclar</button>
+    <form style="display:inline" method="post" action="{{ url_for('admin.delete_resource', resource='docentes', object_id=t.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn-link danger">Excluir</button></form>
+  </div></td>
+</tr>
+{% else %}<tr><td colspan="7">Nenhum docente encontrado.</td></tr>{% endfor %}
+</tbody></table></div>
+{% include 'admin/_pagination.html' with context %}
+
+<div class="admin-card" style="margin-top:18px"><p class="admin-help"><strong>Sobre horários:</strong> os registros importados do horário são vinculados pelo nome normalizado e por correspondência aproximada. Se uma portaria trouxer um nome diferente do horário, use <strong>Mesclar</strong> para manter um único cadastro.</p></div>
+
+<!-- O formulário de criação é convertido pelo admin.js em modal. -->
 <div class="admin-form"><h2>Novo docente</h2><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><div class="form-grid"><label>Nome<input required name="name"></label><label>SIAPE/matrícula<input name="siape"></label><label>Disciplina de ingresso<input name="ingresso_disciplina" placeholder="Ex.: Informática / área de concurso"></label><label>E-mail<input name="email" type="email"></label><label>Foto (URL)<input name="photo_url"></label><label>Lattes<input name="lattes_url"></label><label>ORCID<input name="orcid_url"></label></div><label>Formação<textarea name="education"></textarea></label><label>Áreas<textarea name="areas"></textarea></label><label>Biografia<textarea name="bio"></textarea></label><label><input type="checkbox" name="active" checked> Ativo</label><button class="btn btn-primary">Salvar</button></form></div>
-<div class="admin-table"><table><thead><tr><th>Foto</th><th>Nome</th><th>SIAPE</th><th>E-mail</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>{% for t in teachers.items %}<tr><td>{% if t.photo_url %}<img src="{{ t.photo_url }}" alt="" style="width:42px;height:42px;object-fit:cover;border-radius:50%">{% else %}—{% endif %}</td><td>{{ t.name }}</td><td>{{ t.siape or '—' }}</td><td>{{ t.email or '—' }}</td><td>{{ 'Sim' if t.active else 'Não' }}</td><td><a class="btn-link" href="{{ url_for('admin.edit_resource', resource='docentes', object_id=t.id) }}">Editar</a> <form style="display:inline" method="post" action="{{ url_for('admin.delete_resource', resource='docentes', object_id=t.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn-link danger">Excluir</button></form></td></tr>{% else %}<tr><td colspan="6">Nenhum docente encontrado.</td></tr>{% endfor %}</tbody></table></div>{% include 'admin/_pagination.html' with context %}{% endblock %}
+
+<dialog class="admin-modal" id="teacher-suap-modal"><div class="admin-modal-box"><div class="admin-modal-head"><h2>Buscar docente no SUAP</h2><button type="button" class="admin-modal-close" data-close-suap>×</button></div><div class="admin-modal-body">
+  <p class="admin-help">Informe nome ou matrícula. O resultado vem diretamente do endpoint de servidores do SUAP.</p>
+  <input type="hidden" id="suap-teacher-id"><input type="hidden" id="suap-csrf" value="{{ csrf_token() }}">
+  <div class="form-grid"><label>Nome<input id="suap-search-name"></label><label>Matrícula<input id="suap-search-matricula"></label></div>
+  <button type="button" class="btn btn-primary" id="suap-search-button">Buscar no SUAP</button>
+  <div id="suap-results" class="suap-results"></div>
+</div></div></dialog>
+
+<dialog class="admin-modal" id="teacher-merge-modal"><div class="admin-modal-box"><div class="admin-modal-head"><h2>Mesclar docentes</h2><button type="button" class="admin-modal-close" data-close-merge>×</button></div><div class="admin-modal-body">
+  <p>Escolha o cadastro que será mantido. Horários, históricos de NDE/Colegiado e dados disponíveis serão transferidos para o cadastro de destino.</p>
+  <form method="post" id="merge-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="target_id" id="merge-target-id"><label>Manter cadastro de<select id="merge-target-select" required></select></label><div class="admin-modal-actions"><button type="button" class="btn btn-outline" data-close-merge>Cancelar</button><button type="submit" class="btn btn-primary">Mesclar cadastros</button></div></form>
+</div></div></dialog>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+<script>
+(function(){
+  const suapModal=document.getElementById('teacher-suap-modal');
+  const mergeModal=document.getElementById('teacher-merge-modal');
+  const searchResults=document.getElementById('suap-results');
+  const csrf=document.getElementById('suap-csrf').value;
+  const mergeSelect=document.getElementById('merge-target-select');
+  const mergeForm=document.getElementById('merge-form');
+  const teacherRows={{ teachers.items|map(attribute='id')|list|tojson }};
+  const teacherNames={{ teachers.items|map(attribute='name')|list|tojson }};
+  const teacherIds={{ teachers.items|map(attribute='id')|list|tojson }};
+  const currentTeacherData={ {% for t in teachers.items %}"{{ t.id }}": {{ t.name|tojson }},{% endfor %} };
+  document.querySelectorAll('[data-suap-open]').forEach(btn=>btn.addEventListener('click',()=>{
+    document.getElementById('suap-teacher-id').value=btn.dataset.teacherId;
+    document.getElementById('suap-search-name').value=btn.dataset.teacherName||'';
+    document.getElementById('suap-search-matricula').value=btn.dataset.teacherMatricula||'';
+    searchResults.innerHTML=''; suapModal.showModal();
+  }));
+  document.querySelector('[data-close-suap]').addEventListener('click',()=>suapModal.close());
+  suapModal.addEventListener('click',e=>{if(e.target===suapModal)suapModal.close()});
+  document.getElementById('suap-search-button').addEventListener('click',async()=>{
+    searchResults.innerHTML='<p>Consultando SUAP...</p>';
+    const p=new URLSearchParams({nome:document.getElementById('suap-search-name').value,matricula:document.getElementById('suap-search-matricula').value});
+    try{
+      const r=await fetch('{{ url_for("admin.search_teachers_suap") }}?'+p.toString(),{headers:{'Accept':'application/json'}}); const data=await r.json();
+      if(!data.results?.length){searchResults.innerHTML='<p>Nenhum servidor encontrado.</p>';return;}
+      const id=document.getElementById('suap-teacher-id').value;
+      searchResults.innerHTML='';
+      data.results.forEach(item=>{
+        const card=document.createElement('div'); card.className='suap-result';
+        const info=document.createElement('div'); info.innerHTML='<strong></strong><small></small><small></small>'; info.querySelector('strong').textContent=item.nome||'Sem nome'; info.querySelectorAll('small')[0].textContent='Matrícula: '+(item.matricula||'—')+' · Campus: '+(item.campus||'—'); info.querySelectorAll('small')[1].textContent='Cargo: '+(item.cargo||'—');
+        const form=document.createElement('form'); form.method='post'; form.action='{{ url_for("admin.link_teacher_suap", teacher_id=0) }}'.replace('/0/suap-vincular','/'+id+'/suap-vincular');
+        form.innerHTML='<input type="hidden" name="csrf_token"><input type="hidden" name="matricula"><button class="btn btn-outline">Vincular este</button>'; form.querySelector('[name=csrf_token]').value=csrf; form.querySelector('[name=matricula]').value=item.matricula||'';
+        card.append(info,form); searchResults.appendChild(card);
+      });
+    }catch(e){searchResults.innerHTML='<p class="alert alert-danger">Erro ao consultar o SUAP.</p>'}
+  });
+  document.querySelectorAll('[data-merge-open]').forEach(btn=>btn.addEventListener('click',()=>{
+    const sourceId=btn.dataset.teacherId; mergeSelect.innerHTML='';
+    {% for t in teachers.items %}{% if t.id != 0 %}
+    if(String({{ t.id }})!==String(sourceId)){const o=document.createElement('option');o.value='{{ t.id }}';o.textContent={{ t.name|tojson }};mergeSelect.appendChild(o);}
+    {% endif %}{% endfor %}
+    document.getElementById('merge-target-id').value=mergeSelect.value||'';
+    mergeSelect.onchange=()=>document.getElementById('merge-target-id').value=mergeSelect.value;
+    mergeForm.action='{{ url_for("admin.merge_teacher", teacher_id=0) }}'.replace('/0/mesclar','/'+sourceId+'/mesclar');
+    mergeModal.showModal();
+  }));
+  document.querySelectorAll('[data-close-merge]').forEach(b=>b.addEventListener('click',()=>mergeModal.close()));
+  mergeModal.addEventListener('click',e=>{if(e.target===mergeModal)mergeModal.close()});
+})();
+</script>
+{% endblock %}

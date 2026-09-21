@@ -1,7 +1,7 @@
 {% extends 'admin/base.html' %}
 {% block title %}ENADE · Administração{% endblock %}
 {% block admin_content %}
-<div class="admin-header"><div><span class="eyebrow">Avaliação</span><h1>ENADE</h1><p>Gerencie as edições e importe questões objetivas dos PDFs oficiais do Inep.</p></div><a class="btn btn-outline" href="{{ url_for('public.enade') }}">Ver página pública</a></div>
+<div class="admin-header"><div><span class="eyebrow">Avaliação</span><h1>ENADE</h1><p>Gerencie as edições e importe questões objetivas dos PDFs oficiais do Inep.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-outline" href="{{ url_for('public.enade') }}">Ver página pública</a><a class="btn btn-primary" href="{{ url_for('admin.student_preview') }}">Testar área do aluno</a></div></div>
 <div class="admin-table"><table><thead><tr><th>Ano</th><th>Área</th><th>Questões</th><th>Importação</th><th>Ações</th></tr></thead><tbody>
 {% for exam in exams %}<tr><td><strong>{{ exam.year }}</strong></td><td>{{ exam.area }}</td><td>{{ counts[exam.id] }}</td><td>{{ exam.imported_at or 'Ainda não importado' }}</td><td><form method="post" action="{{ url_for('admin.import_enade', year=exam.year) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-primary" type="submit">Importar questões</button></form></td></tr>{% else %}<tr><td colspan="5">Nenhuma edição cadastrada.</td></tr>{% endfor %}</tbody></table></div>
 <div class="admin-actions" style="margin-top:18px"><a class="btn btn-primary" href="{{ url_for('admin.enade_results') }}">Acompanhar participantes e resultados</a></div>

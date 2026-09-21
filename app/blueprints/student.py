@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for, g
+from flask import Blueprint, flash, redirect, render_template, request, url_for, g, session
 from flask_login import current_user, login_required
 
 from app.extensions import db
@@ -9,6 +9,16 @@ from app.models import EnadeAttempt, EnadeExam, EnadeQuestion
 from app.services.student_portal import build_academic_history, fetch_report_history, load_student_portal, demo_student_portal
 
 bp = Blueprint("student", __name__)
+
+DEMO_ENADE_QUESTIONS = [
+    {"id": -1, "number": 1, "component": "Questão demonstrativa", "statement": "Em uma atividade de pensamento computacional, decompor um problema significa:", "options": {"A":"dividi-lo em partes menores e tratáveis.","B":"eliminar todos os dados de entrada.","C":"executar o programa sem testar.","D":"substituir o problema por outro.","E":"evitar a identificação de padrões."}, "correct_option":"A"},
+    {"id": -2, "number": 2, "component": "Questão demonstrativa", "statement": "Em programação orientada a objetos, encapsulamento está relacionado a:", "options": {"A":"usar apenas variáveis globais.","B":"proteger e organizar o acesso ao estado e comportamento de um objeto.","C":"eliminar métodos.","D":"impedir a criação de classes.","E":"converter código em HTML."}, "correct_option":"B"},
+    {"id": -3, "number": 3, "component": "Questão demonstrativa", "statement": "Uma prática coerente com avaliação formativa é:", "options": {"A":"avaliar somente no final do semestre.","B":"usar evidências durante o processo para orientar intervenções pedagógicas.","C":"atribuir a mesma nota independentemente do desempenho.","D":"impedir feedback ao estudante.","E":"desconsiderar os objetivos de aprendizagem."}, "correct_option":"B"},
+    {"id": -4, "number": 4, "component": "Questão demonstrativa", "statement": "Uma estrutura de dados adequada para representar uma fila segue, em geral, o princípio:", "options": {"A":"LIFO.","B":"FIFO.","C":"aleatório.","D":"recursivo obrigatório.","E":"ordenamento alfabético."}, "correct_option":"B"},
+    {"id": -5, "number": 5, "component": "Questão demonstrativa", "statement": "No contexto de acessibilidade digital, texto alternativo em uma imagem serve principalmente para:", "options": {"A":"aumentar a resolução da imagem.","B":"fornecer uma descrição textual que possa ser interpretada por tecnologias assistivas.","C":"ocultar a imagem de todos os usuários.","D":"substituir o CSS.","E":"reduzir o tamanho do banco de dados."}, "correct_option":"B"},
+    {"id": -6, "number": 6, "component": "Questão demonstrativa", "statement": "Em uma rede, o endereço IP é utilizado para:", "options": {"A":"identificar logicamente um dispositivo em uma rede.","B":"armazenar exclusivamente senhas.","C":"definir a resolução do monitor.","D":"substituir o sistema operacional.","E":"criar documentos acadêmicos."}, "correct_option":"A"},
+]
+
 
 @bp.before_request
 def mark_demo():
@@ -130,10 +140,19 @@ def enade_dashboard():
         attempts = {r.question_id: r for r in rows}
     total = EnadeQuestion.query.filter_by(exam_id=exam.id, active=True).count() if exam else 0
     questions = EnadeQuestion.query.filter_by(exam_id=exam.id, active=True).order_by(EnadeQuestion.number).all() if exam else []
+    demo_only_questions = False
+    if demo and exam and not questions:
+        from types import SimpleNamespace
+        questions = [SimpleNamespace(**q, options_json=json.dumps(q["options"], ensure_ascii=False)) for q in DEMO_ENADE_QUESTIONS]
+        total = len(questions)
+        demo_only_questions = True
     if demo:
         from types import SimpleNamespace
-        for q in questions[:3]:
-            attempts[q.id] = SimpleNamespace(selected_option=q.correct_option or "A", is_correct=True, score=1.0)
+        demo_answers = session.get("demo_enade_answers", {})
+        for q in questions:
+            selected = demo_answers.get(str(q.id))
+            if selected:
+                attempts[q.id] = SimpleNamespace(selected_option=selected.get("option"), is_correct=selected.get("is_correct", False), score=selected.get("score", 0.0))
     answered = len(attempts)
     points = sum(a.score for a in attempts.values())
     return render_template("student/enade.html", exams=exams, exam=exam, questions=questions, attempts=attempts, total=total, answered=answered, points=points, demo=demo)
@@ -142,19 +161,36 @@ def enade_dashboard():
 @bp.post("/enade/questao/<int:question_id>")
 @login_required
 def answer_question(question_id):
-    question = EnadeQuestion.query.get_or_404(question_id)
+    demo = request.form.get("demo") == "1" and current_user.is_admin
+    if demo and question_id < 0:
+        question_data = next((q for q in DEMO_ENADE_QUESTIONS if q["id"] == question_id), None)
+        if not question_data:
+            flash("Questão demonstrativa não encontrada.", "danger")
+            return redirect(url_for("student.enade_dashboard", demo="1"))
+        from types import SimpleNamespace
+        question = SimpleNamespace(**question_data, options_json=json.dumps(question_data["options"], ensure_ascii=False))
+    else:
+        question = EnadeQuestion.query.get_or_404(question_id)
     option = request.form.get("option", "").strip().upper()
     options = json.loads(question.options_json)
     if option not in options:
         flash("Selecione uma alternativa válida.", "warning")
-        return redirect(url_for("student.enade_dashboard", ano=question.exam_id))
+        return redirect(url_for("student.enade_dashboard", ano=(question.exam_id if hasattr(question, "exam_id") else request.args.get("ano", type=int)), demo="1" if demo else None))
+    is_correct = bool(question.correct_option and option == question.correct_option)
+    score = 1.0 if is_correct else 0.0
+    if demo:
+        demo_answers = session.get("demo_enade_answers", {})
+        demo_answers[str(question.id)] = {"option": option, "is_correct": is_correct, "score": score}
+        session["demo_enade_answers"] = demo_answers
+        flash("Resposta simulada registrada. Nenhuma informação foi gravada no banco de dados.", "success" if is_correct else "info")
+        return redirect(url_for("student.enade_dashboard", ano=(question.exam_id if hasattr(question, "exam_id") else request.args.get("ano", type=int)), demo="1") + f"#questao-{question.id}")
     attempt = EnadeAttempt.query.filter_by(user_id=current_user.id, question_id=question.id).first()
     if not attempt:
         attempt = EnadeAttempt(user_id=current_user.id, question_id=question.id)
         db.session.add(attempt)
     attempt.selected_option = option
-    attempt.is_correct = bool(question.correct_option and option == question.correct_option)
-    attempt.score = 1.0 if attempt.is_correct else 0.0
+    attempt.is_correct = is_correct
+    attempt.score = score
     attempt.answered_at = datetime.utcnow()
     db.session.commit()
     if question.correct_option:
