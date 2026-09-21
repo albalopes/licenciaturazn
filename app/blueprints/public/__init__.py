@@ -20,12 +20,16 @@ def matrices():
 @bp.get("/matrizes/<int:year>")
 def matrix_detail(year):
     matrix = Matrix.query.filter_by(year=year, is_published=True).first_or_404()
-    semester = request.args.get("semestre", type=int)
+    semester_raw = request.args.get("semestre", "").strip()
+    semester = int(semester_raw) if semester_raw.isdigit() else None
+    optativas = semester_raw.lower() in {"optativas", "optativa"}
     kind = request.args.get("tipo")
     area = request.args.get("area")
     query = request.args.get("q", "").strip()
     disciplines = Discipline.query.filter_by(matrix_id=matrix.id)
-    if semester:
+    if optativas:
+        disciplines = disciplines.filter_by(kind="optativa")
+    elif semester:
         disciplines = disciplines.filter_by(semester=semester)
     if kind:
         disciplines = disciplines.filter_by(kind=kind)
@@ -33,7 +37,10 @@ def matrix_detail(year):
         disciplines = disciplines.filter_by(area=area)
     if query:
         disciplines = disciplines.filter(Discipline.name.ilike(f"%{query}%"))
-    disciplines = disciplines.order_by(Discipline.semester, Discipline.name).all()
+    # Mantém os semestres 1–8 em ordem e deixa as optativas ao final quando a visão geral é exibida.
+    from sqlalchemy import case
+    semester_order = case((Discipline.semester.is_(None), 1), else_=0)
+    disciplines = disciplines.order_by(semester_order, Discipline.semester, Discipline.name).all()
     areas = [r[0] for r in Discipline.query.with_entities(Discipline.area).filter_by(matrix_id=matrix.id).distinct().order_by(Discipline.area).all() if r[0]]
     return render_template("public/matrix_detail.html", matrix=matrix, disciplines=disciplines, areas=areas)
 

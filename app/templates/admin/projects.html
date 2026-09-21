@@ -3,13 +3,13 @@
 {% block admin_content %}
 <div class="admin-header"><div><span class="eyebrow">Pesquisa · Ensino · Extensão</span><h1>Projetos</h1><p class="admin-subtitle">Projetos do Campus Natal-Zona Norte sincronizados com a API atual do SUAP. A indicação de participação de estudantes da Licenciatura é mantida pela Coordenação.</p></div></div>
 
-<form class="admin-search" method="get">
+<form class="admin-search auto-filter" method="get">
   <input name="q" value="{{ q }}" placeholder="Buscar por título, coordenador, campus ou descrição...">
   <select name="tipo"><option value="">Todos os tipos</option><option value="pesquisa" {% if project_type=='pesquisa' %}selected{% endif %}>Pesquisa</option><option value="ensino" {% if project_type=='ensino' %}selected{% endif %}>Ensino</option><option value="extensao" {% if project_type=='extensao' %}selected{% endif %}>Extensão</option></select>
   <select name="licenciatura"><option value="">Licenciatura: todos</option><option value="sim" {% if licenciatura=='sim' %}selected{% endif %}>Sim</option><option value="nao" {% if licenciatura=='nao' %}selected{% endif %}>Não</option><option value="pendente" {% if licenciatura=='pendente' %}selected{% endif %}>Não informado</option></select>
   <select name="source"><option value="">Todas as fontes</option><option value="suap" {% if source=='suap' %}selected{% endif %}>SUAP</option><option value="manual" {% if source=='manual' %}selected{% endif %}>Manual</option></select>
   <input name="status" value="{{ status }}" placeholder="Situação (ex.: andamento)">
-  <button class="btn btn-outline">Filtrar</button>
+  <button class="btn btn-outline" type="submit">Filtrar</button><a class="btn btn-outline filter-clear" href="{{ url_for('admin.projects') }}">Limpar filtros</a>
 </form>
 
 <div class="admin-grid-two">
@@ -46,9 +46,34 @@
   </form>
 </div>
 
-<div class="admin-table"><h2>Projetos cadastrados</h2><table><thead><tr><th>Projeto</th><th>Categoria</th><th>Campus</th><th>Fonte</th><th>Situação</th><th>Licenciatura</th><th>Ações</th></tr></thead><tbody>
+{% if pending_projects %}
+<div class="admin-card project-review-card">
+  <div class="admin-header project-review-header"><div><span class="eyebrow">Revisão antes da publicação</span><h2>Projetos encontrados no SUAP</h2><p class="admin-help">Confira o coordenador e os dados básicos. Marque os projetos que deseja importar para o portal. Os que não forem aceitos permanecem fora da área pública.</p></div></div>
+  <form method="post" action="{{ url_for('admin.import_selected_projects') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="project-review-list">
+      {% for project in pending_projects %}
+      <article class="project-review-item">
+        <label class="project-review-check"><input type="checkbox" name="project_ids" value="{{ project.id }}"><span>Importar</span></label>
+        <div class="project-review-main">
+          <h3>{{ project.title }}</h3>
+          <div class="project-review-meta"><span>{{ project.project_type|capitalize }}</span><span>{{ project.campus or 'Campus não informado' }}</span><span>{{ project.status or 'Situação não informada' }}</span>{% if project.academic_year %}<span>{{ project.academic_year }}</span>{% endif %}</div>
+          <p><strong>Coordenador(a):</strong> {{ project.coordinator or 'Não informado' }}</p>
+          {% if project.period %}<p><strong>Período:</strong> {{ project.period }}</p>{% endif %}
+          <p class="project-review-description">{{ project.description|truncate(320, True) }}</p>
+          {% if project.url %}<a class="btn-link" href="{{ project.url }}" target="_blank" rel="noopener">Ver projeto no SUAP ↗</a>{% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    <div class="project-review-actions"><button class="btn btn-primary">Importar selecionados</button><button class="btn btn-outline" type="submit" formaction="{{ url_for('admin.reject_selected_projects') }}">Não importar selecionados</button></div>
+  </form>
+</div>
+{% endif %}
+
+<div class="admin-table"><h2>Projetos cadastrados</h2><table><thead><tr><th>Projeto</th><th>Categoria</th><th>Coordenador(a)</th><th>Fonte</th><th>Situação</th><th>Licenciatura</th><th>Ações</th></tr></thead><tbody>
 {% for project in projects.items %}
-<tr><td><strong>{{ project.title }}</strong>{% if project.acronym %}<br><small>{{ project.acronym }}</small>{% endif %}</td><td>{{ project.project_type|capitalize }}</td><td>{{ project.campus or '—' }}</td><td>{{ project.source_system|upper }}</td><td>{{ project.status or '—' }}</td><td>{{ 'Sim' if project.has_licenciatura_students is true else ('Não' if project.has_licenciatura_students is false else 'Não informado') }}</td><td><a class="btn-link" href="{{ url_for('admin.edit_resource', resource='projetos', object_id=project.id) }}">Editar</a> <form style="display:inline" method="post" action="{{ url_for('admin.delete_project', project_id=project.id) }}" onsubmit="return confirm('Excluir este projeto?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn-link danger">Excluir</button></form></td></tr>
+<tr><td><strong>{{ project.title }}</strong>{% if project.acronym %}<br><small>{{ project.acronym }}</small>{% endif %}</td><td>{{ project.project_type|capitalize }}</td><td>{{ project.coordinator or 'Não informado' }}</td><td>{{ project.source_system|upper }}</td><td>{{ project.status or '—' }}</td><td>{{ 'Sim' if project.has_licenciatura_students is true else ('Não' if project.has_licenciatura_students is false else 'Não informado') }}</td><td><a class="btn-link" href="{{ url_for('admin.edit_project', project_id=project.id) }}">Editar</a> <form style="display:inline" method="post" action="{{ url_for('admin.delete_project', project_id=project.id) }}" onsubmit="return confirm('Excluir este projeto?')"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn-link danger">Excluir</button></form></td></tr>
 {% else %}<tr><td colspan="7">Nenhum projeto encontrado.</td></tr>{% endfor %}
 </tbody></table></div>
 {% include 'admin/_pagination.html' with context %}

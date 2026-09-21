@@ -1,0 +1,30 @@
+{% extends 'admin/base.html' %}
+{% block title %}Editar projeto{% endblock %}
+{% block admin_content %}
+<div class="admin-header"><div><span class="eyebrow">Projetos</span><h1>Editar projeto</h1><p class="admin-subtitle">Altere os dados cadastrados e defina como o projeto será apresentado no portal.</p></div><a class="btn btn-outline" href="{{ url_for('admin.projects') }}">Voltar</a></div>
+<form class="admin-form project-edit-form" method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div class="form-grid">
+<label>Título<input name="title" value="{{ project.title or '' }}" required></label>
+<label>Sigla<input name="acronym" value="{{ project.acronym or '' }}"></label>
+<label>Categoria<select name="project_type"><option value="pesquisa" {% if project.project_type=='pesquisa' %}selected{% endif %}>Pesquisa</option><option value="ensino" {% if project.project_type=='ensino' %}selected{% endif %}>Ensino</option><option value="extensao" {% if project.project_type=='extensao' %}selected{% endif %}>Extensão</option></select></label>
+<label>Campus<input name="campus" value="{{ project.campus or '' }}"></label>
+<label>Ano<input type="number" name="academic_year" value="{{ project.academic_year or '' }}"></label>
+<label>Situação<input name="status" value="{{ project.status or '' }}"></label>
+<label>Coordenador(a)<input name="coordinator" value="{{ project.coordinator or '' }}"></label>
+<label>Período<input name="period" value="{{ project.period or '' }}"></label>
+<label>Fomento<input name="funding" value="{{ project.funding or '' }}"></label>
+<label>Parceiros<input name="partners" value="{{ project.partners or '' }}"></label>
+<label>Link<input type="url" name="url" value="{{ project.url or '' }}"></label>
+<label>Imagem<input type="url" name="image_url" value="{{ project.image_url or '' }}"></label>
+</div>
+<label>Descrição<textarea name="description" rows="7" required>{{ project.description or '' }}</textarea></label>
+<label>Objetivos<textarea name="objectives" rows="5">{{ project.objectives or '' }}</textarea></label>
+<label>Equipe<textarea name="team" rows="4">{{ project.team or '' }}</textarea></label>
+<label>Participação de alunos da Licenciatura<select name="has_licenciatura_students"><option value="">Não informado</option><option value="true" {% if project.has_licenciatura_students is sameas true %}selected{% endif %}>Sim</option><option value="false" {% if project.has_licenciatura_students is sameas false and project.has_licenciatura_students is not none %}selected{% endif %}>Não</option></select></label>
+<label>Observação sobre alunos<textarea name="licenciatura_notes" rows="3">{{ project.licenciatura_notes or '' }}</textarea></label>
+<div class="check-row"><label><input type="checkbox" name="is_pibid" {% if project.is_pibid %}checked{% endif %}> PIBID</label><label><input type="checkbox" name="featured" {% if project.featured %}checked{% endif %}> Destaque</label><label><input type="checkbox" name="published" {% if project.published %}checked{% endif %}> Publicado</label></div>
+<div class="project-source-note"><strong>Fonte:</strong> {{ project.source_system|upper }}{% if project.suap_id %} · ID SUAP {{ project.suap_id }}{% endif %} · <strong>Importação:</strong> {{ project.import_status|capitalize }}</div>
+<button class="btn btn-primary">Salvar alterações</button>
+</form>
+{% endblock %}

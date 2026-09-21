@@ -56,6 +56,18 @@ def _download(url):
     return r.content
 
 
+def _read_pdf_bytes(content):
+    if not content:
+        raise ValueError("O PDF enviado está vazio.")
+    try:
+        reader = PdfReader(BytesIO(content))
+    except Exception as exc:
+        raise ValueError(f"Não foi possível abrir o PDF enviado: {exc}") from exc
+    if not reader.pages:
+        raise ValueError("O PDF enviado não contém páginas.")
+    return content
+
+
 def _pdf_text(content):
     reader = PdfReader(BytesIO(content))
     pages = []
@@ -109,42 +121,69 @@ def _extract_questions(pages):
 def _extract_answer_key(text_pages):
     text = _normalize("\n".join(t for _, t in text_pages))
     answers = {}
-    for m in re.finditer(r"QUESTÃO\s+(\d{1,2})\s+([A-E])\b", text, re.I):
-        answers.setdefault(int(m.group(1)), m.group(2).upper())
-    # O Mapa de Prova 2024 usa tabela com colunas: item | gabarito | ...
-    for m in re.finditer(r"\|\s*(\d{1,3})\s*\|\s*([A-E])\s*\|", text):
+
+    # Formatos comuns: "QUESTÃO 1 A", "QUESTAO 1 - A", "1 A" e tabelas com |.
+    patterns = [
+        r"(?:QUEST[ÃA]O|QUESTAO|ITEM)\s*(\d{1,3})\s*[-:.)]?\s*([A-E])\b",
+        r"(?m)^\s*(\d{1,3})\s*[-:.)]?\s+([A-E])\s*$",
+        r"\|\s*(\d{1,3})\s*\|\s*([A-E])\s*\|",
+    ]
+    for pattern in patterns:
+        for m in re.finditer(pattern, text, re.I):
+            answers.setdefault(int(m.group(1)), m.group(2).upper())
+
+    # Alguns gabaritos extraem como sequência de pares na mesma linha: 1 A 2 C 3 B...
+    for m in re.finditer(r"(?:^|[;|])\s*(\d{1,3})\s+([A-E])(?=\s|$)", text, re.I | re.M):
         answers.setdefault(int(m.group(1)), m.group(2).upper())
     return answers
+
+
+def import_exam_questions_from_bytes(year, exam_pdf, answer_key_pdf):
+    """Importa uma edição a partir dos dois PDFs enviados pelo administrador."""
+    exam = EnadeExam.query.filter_by(year=year).first()
+    if not exam:
+        raise ValueError("Edição do ENADE não cadastrada.")
+    if not exam_pdf or not answer_key_pdf:
+        raise ValueError("Envie o PDF da prova e o PDF do gabarito.")
+
+    exam_content = _read_pdf_bytes(exam_pdf)
+    key_content = _read_pdf_bytes(answer_key_pdf)
+    pages = _pdf_text(exam_content)
+    key_pages = _pdf_text(key_content)
+    questions = _extract_questions(pages)
+    answer_key = _extract_answer_key(key_pages)
+    if not questions:
+        raise ValueError("Nenhuma questão objetiva foi identificada no PDF da prova. Verifique se o PDF contém texto selecionável.")
+    if not answer_key:
+        raise ValueError("Nenhum gabarito foi identificado no PDF enviado.")
+
+    EnadeQuestion.query.filter_by(exam_id=exam.id).delete(synchronize_session=False)
+    for item in questions:
+        component = "Formação Geral" if (year < 2024 and item["number"] <= 8) else "Componente Específico"
+        if year == 2024:
+            component = "Formação Geral Docente" if item["number"] <= 27 else "Componente Específico"
+        db.session.add(EnadeQuestion(
+            exam_id=exam.id, number=item["number"], component=component,
+            statement=item["statement"], options_json=json.dumps(item["options"], ensure_ascii=False),
+            correct_option=answer_key.get(item["number"]), source_page=item.get("source_page"),
+            source_url=exam.exam_url,
+        ))
+    exam.imported_at = datetime.utcnow()
+    db.session.commit()
+    return len(questions), len(answer_key)
 
 
 def import_exam_questions(year):
     exam = EnadeExam.query.filter_by(year=year).first()
     if not exam:
         raise ValueError("Edição do ENADE não cadastrada.")
-    pages = _pdf_text(_download(exam.exam_url))
-    questions = _extract_questions(pages)
-    answer_key = {}
-    if exam.answer_key_url:
-        try:
-            answer_key = _extract_answer_key(_pdf_text(_download(exam.answer_key_url)))
-        except Exception:
-            answer_key = {}
-    EnadeQuestion.query.filter_by(exam_id=exam.id).delete(synchronize_session=False)
-    for item in questions:
-        component = "Formação Geral" if (year < 2024 and item["number"] <= 8) else "Componente Específico"
-        if year == 2024:
-            component = "Formação Geral Docente" if item["number"] <= 27 else "Componente Específico"
-        q = EnadeQuestion(
-            exam_id=exam.id,
-            number=item["number"],
-            component=component,
-            statement=item["statement"],
-            options_json=json.dumps(item["options"], ensure_ascii=False),
-            correct_option=answer_key.get(item["number"]),
-            source_page=item.get("source_page"),
-            source_url=exam.exam_url,
-        )
-        db.session.add(q)
-    exam.imported_at = datetime.utcnow()
-    db.session.commit()
-    return len(questions), len(answer_key)
+    try:
+        exam_pdf = _download(exam.exam_url)
+        key_pdf = _download(exam.answer_key_url) if exam.answer_key_url else None
+    except requests.RequestException as exc:
+        raise ConnectionError(
+            "Não foi possível baixar os PDFs do Inep a partir do servidor. "
+            "Use a opção de enviar os PDFs da prova e do gabarito nesta página."
+        ) from exc
+    return import_exam_questions_from_bytes(year, exam_pdf, key_pdf)
+

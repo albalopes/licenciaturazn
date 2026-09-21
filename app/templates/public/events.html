@@ -28,7 +28,7 @@
 
 <section class="section section-alt"><div class="container">
   <div class="section-heading"><div><span class="eyebrow">Publicações</span><h2>Produção acadêmica do curso</h2><p>Catálogo em atualização contínua de artigos, trabalhos em eventos e outras publicações localizadas em fontes institucionais, anais e registros públicos de docentes. A busca prioriza produções de estudantes e docentes vinculados à Licenciatura em Informática do Campus Natal-Zona Norte e permite filtrar por ano, evento, tema, docente ou autor.</p></div></div>
-  <form class="filter-panel" method="get" action="{{ url_for('public.events') }}">
+  <form class="filter-panel auto-filter" method="get" action="{{ url_for('public.events') }}">
     <div class="form-grid">
       <label>Ano<select name="ano"><option value="">Todos</option>{% for y in years %}<option value="{{ y }}" {% if selected_year==y %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></label>
       <label>Tema<select name="tema"><option value="">Todos</option>{% for t in themes %}<option value="{{ t }}" {% if selected_theme==t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></label>
@@ -36,7 +36,7 @@
       <label>Docente<select name="docente"><option value="">Todos</option>{% for t in teacher_names %}<option value="{{ t }}" {% if selected_teacher==t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></label>
       <label>Autor<input name="autor" value="{{ selected_author }}" placeholder="Nome do autor"></label>
     </div>
-    <div class="filter-actions"><button class="btn btn-primary">Filtrar</button><a class="btn btn-outline" href="{{ url_for('public.events') }}">Limpar</a><span class="muted">{{ publications|length }} publicação(ões) encontrada(s)</span></div>
+    <div class="filter-actions"><button class="btn btn-primary">Filtrar</button><a class="btn btn-outline filter-clear" href="{{ url_for('public.events') }}">Limpar filtros</a><span class="muted">{{ publications|length }} publicação(ões) encontrada(s)</span></div>
   </form>
 
   <div class="publication-list">

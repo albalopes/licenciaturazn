@@ -17,6 +17,7 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     WTF_CSRF_TIME_LIMIT = None
+    MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # PDFs da prova + gabarito
 
     SUAP_BASE_URL = os.getenv("SUAP_BASE_URL", "https://suap.ifrn.edu.br")
     SUAP_AUTH_URL = os.getenv("SUAP_AUTH_URL", f"{SUAP_BASE_URL}/o/authorize/")

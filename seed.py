@@ -44,11 +44,12 @@ def ensure_schema():
         "teachers": {"suap_id": "VARCHAR(80) NULL", "siape": "VARCHAR(50) NULL", "ingresso_disciplina": "VARCHAR(180) NULL", "merged_into_id": "INTEGER NULL"},
         "memoria_works": {
             "accepted": "BOOLEAN NOT NULL DEFAULT 1", "accepted_at": "DATETIME NULL",
+            "excluded": "BOOLEAN NOT NULL DEFAULT 0",
         },
         "projects": {
             "suap_id": "VARCHAR(80) NULL", "source_system": "VARCHAR(40) NOT NULL DEFAULT 'manual'",
             "campus": "VARCHAR(120) NULL", "academic_year": "INTEGER NULL",
-            "has_licenciatura_students": "BOOLEAN NULL", "licenciatura_notes": "TEXT NULL",
+            "has_licenciatura_students": "BOOLEAN NULL", "licenciatura_notes": "TEXT NULL", "import_status": "VARCHAR(20) NOT NULL DEFAULT 'accepted'",
         },
     }
     for table, columns in additions.items():
@@ -60,6 +61,8 @@ def ensure_schema():
                 db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
     if "memoria_works" in inspector.get_table_names():
         db.session.execute(text("UPDATE memoria_works SET accepted = 1 WHERE accepted = 0 AND active = 1"))
+    if "projects" in inspector.get_table_names():
+        db.session.execute(text("UPDATE projects SET import_status = 'accepted' WHERE import_status IS NULL OR import_status = ''"))
     db.session.commit()
 
 
@@ -289,7 +292,7 @@ def seed_pages():
     upsert_page(
         "vida-academica", "Vida acadêmica", "Vida acadêmica",
         """
-        <p>Se você está organizando sua vida acadêmica, aqui estão reunidas as orientações que mais costumam fazer diferença: TCC, estágio docente, estágio extracurricular, ATPA, aproveitamento de estudos, certificação de conhecimentos, assistência estudantil e horários.</p>
+        <p>Se você está organizando sua vida acadêmica, aqui estão reunidas as orientações que mais costumam fazer diferença: TCC, estágio docente, estágio extracurricular, atividades complementares (ATPA no PPC 2018 e AACC no PPC 2012), aproveitamento de estudos, certificação de conhecimentos, assistência estudantil e horários.</p>
         <div class="academic-grid">
           <a class="feature-card" href="/pagina/tcc"><h3>TCC</h3><p>Regras específicas das matrizes e normas institucionais atuais.</p></a>
           <a class="feature-card" href="/pagina/estagio-docente"><h3>Estágio docente</h3><p>Etapas, carga horária e atividades previstas nos PPCs.</p></a>
@@ -336,7 +339,7 @@ def seed_pages():
     )
 
     upsert_page(
-        "atpa", "Atividades Teórico-Práticas de Aprofundamento (ATPA)", "Vida acadêmica",
+        "atpa", "Atividades complementares — ATPA / AACC", "Vida acadêmica",
         """
         <h2>PPC 2018</h2>
         <p>As ATPA são atividades de aprofundamento em áreas específicas de interesse dos estudantes. O estudante deve cumprir no mínimo 200 horas, reconhecidas pelo Colegiado do Curso.</p>
@@ -345,8 +348,8 @@ def seed_pages():
         <p>A validação é solicitada à Coordenação do Curso pelo SUAP, com os documentos comprobatórios.</p>
         <h2>PPC 2009</h2>
         <p>O PPC 2009 prevê 200 horas de <em>Atividades Acadêmico-Científico-Culturais</em>. Entre as atividades reconhecidas estão conferências e palestras, cursos e minicursos, encontros estudantis, iniciação científica, monitoria, voluntariado, publicações, visitas técnicas, extensão, congressos, exposições de trabalhos, grupos de estudo e representação estudantil. A validação é solicitada à Coordenação com documentos comprobatórios e analisada conforme as regras do PPC.</p>
-        <h2>PPC 2012</h2>
-        <p>O PPC 2012 não usa a denominação ATPA: prevê 200 horas de <em>Outras Atividades Acadêmico-Científico-Culturais</em>, reconhecidas pelo Colegiado. A pontuação das atividades é convertida em horas, segundo o quadro do PPC. Entre as atividades estão eventos, cursos, publicações, extensão, iniciação científica, iniciação à docência, monitoria, organização de eventos, estágio extracurricular/voluntário, visitas técnicas, representação estudantil e participação em núcleos/grupos de estudo.</p>
+        <h2>PPC 2012 — AACC</h2>
+        <p>O PPC 2012 não usa a denominação ATPA: prevê 200 horas de <em>Outras Atividades Acadêmico-Científico-Culturais (AACC)</em>, reconhecidas pelo Colegiado. A pontuação das atividades é convertida em horas, segundo o quadro do PPC. Entre as atividades estão eventos, cursos, publicações, extensão, iniciação científica, iniciação à docência, monitoria, organização de eventos, estágio extracurricular/voluntário, visitas técnicas, representação estudantil e participação em núcleos/grupos de estudo.</p>
         <p>Para o registro, o estudante apresenta requerimento e documentação comprobatória; a validação é feita por banca composta pelo coordenador e pelo menos dois docentes do curso. Somente atividades realizadas durante o vínculo com o curso são contabilizadas.</p>
         """,
     )

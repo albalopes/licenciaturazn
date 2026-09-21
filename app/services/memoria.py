@@ -79,7 +79,7 @@ def sync_memoria():
     for item in items:
         try:
             obj = MemoriaWork.query.filter_by(handle=item["handle"]).first()
-            if obj and obj.accepted:
+            if obj and (obj.accepted or obj.excluded):
                 skipped_accepted += 1
                 continue
             detail = _extract_detail(item["url"], item["title"])

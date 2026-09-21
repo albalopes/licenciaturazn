@@ -34,7 +34,7 @@ RESOURCE_CONFIG = {
     "paginas": {"model": SitePage, "label": "Página", "fields": [("slug","Slug","text"),("title","Título","text"),("category","Categoria","text"),("content","Conteúdo","textarea"),("published","Publicada","checkbox")]},
     "documentos": {"model": Document, "label": "Documento", "fields": [("title","Título","text"),("category","Categoria","text"),("description","Descrição","textarea"),("url","URL","url"),("published","Publicado","checkbox")]},
     "eventos": {"model": AcademicEvent, "label": "Evento", "fields": [("title","Título","text"),("description","Descrição","textarea"),("starts_at","Início","datetime"),("ends_at","Fim","datetime"),("category","Categoria","text"),("url","URL","url"),("published","Publicado","checkbox")]},
-    "projetos": {"model": Project, "label": "Projeto", "fields": [("title","Título","text"),("acronym","Sigla","text"),("project_type","Tipo","text"),("description","Descrição","textarea"),("objectives","Objetivos","textarea"),("coordinator","Coordenador","text"),("team","Equipe","textarea"),("period","Período","text"),("status","Status","text"),("campus","Campus","text"),("academic_year","Ano","number"),("funding","Fomento","text"),("partners","Parceiros","textarea"),("url","URL","url"),("image_url","Imagem","url"),("is_pibid","PIBID","checkbox"),("has_licenciatura_students","Alunos da Licenciatura","nullable_checkbox"),("licenciatura_notes","Observação sobre alunos","textarea"),("featured","Destaque","checkbox"),("published","Publicado","checkbox")]},
+    "projetos": {"model": Project, "label": "Projeto", "fields": [("title","Título","text"),("acronym","Sigla","text"),("project_type","Tipo","text"),("description","Descrição","textarea"),("objectives","Objetivos","textarea"),("coordinator","Coordenador","text"),("team","Equipe","textarea"),("period","Período","text"),("status","Status","text"),("campus","Campus","text"),("academic_year","Ano","number"),("funding","Fomento","text"),("partners","Parceiros","textarea"),("url","URL","url"),("image_url","Imagem","url"),("is_pibid","PIBID","checkbox"),("has_licenciatura_students","Alunos da Licenciatura","nullable_checkbox"),("licenciatura_notes","Observação sobre alunos","textarea"),("featured","Destaque","checkbox"),("published","Publicado","checkbox"),("import_status","Status de importação","text")]},
     "entradas": {"model": EntranceSchedule, "label": "Entrada", "fields": [("year","Ano","number"),("shift","Turno","text"),("matrix_year","Matriz","number"),("notes","Observações","textarea"),("published","Publicada","checkbox")]},
     "faq": {"model": FAQ, "label": "FAQ", "fields": [("question","Pergunta","text"),("answer","Resposta","textarea"),("category","Categoria","text"),("position","Posição","number"),("published","Publicada","checkbox")]},
     "portarias": {"model": GovernanceDocument, "label": "Portaria", "fields": [("body","Órgão","text"),("title","Título","text"),("portaria_number","Número da portaria","text"),("issued_at","Data de emissão","date"),("semester","Semestre","text"),("document_url","Documento (URL)","url"),("active","Vigente","checkbox")]},
@@ -242,12 +242,35 @@ def memoria_management():
         from app.services.memoria import sync_memoria
         try:
             result = sync_memoria()
-            flash(f"Busca concluída: {result['pending']} trabalho(s) aguardando aceite. {result['skipped_accepted']} já aceitos foram ignorados.", "success" if not result["errors"] else "warning")
+            flash(f"Busca concluída: {result['pending']} trabalho(s) aguardando aceite. {result['skipped_accepted']} já aceitos/excluídos foram ignorados.", "success" if not result["errors"] else "warning")
         except Exception as exc:
             flash(f"Não foi possível consultar o Memoria: {exc}", "danger")
-    works = MemoriaWork.query.filter_by(accepted=False).order_by(MemoriaWork.date.desc(), MemoriaWork.title).all()
-    accepted = MemoriaWork.query.filter_by(accepted=True).order_by(MemoriaWork.date.desc(), MemoriaWork.title).all()
-    return render_template("admin/memoria.html", works=works, accepted=accepted, result=result)
+
+    q = request.args.get("q", "").strip()
+    state = request.args.get("situacao", "todos").strip().lower()
+    campus = request.args.get("campus", "").strip()
+
+    base = MemoriaWork.query.filter_by(excluded=False)
+    if q:
+        from sqlalchemy import or_
+        term = f"%{q}%"
+        base = base.filter(or_(MemoriaWork.title.ilike(term), MemoriaWork.authors.ilike(term), MemoriaWork.abstract.ilike(term), MemoriaWork.handle.ilike(term)))
+    if campus:
+        base = base.filter(MemoriaWork.campus.ilike(f"%{campus}%"))
+
+    pending_query = base.filter_by(accepted=False).order_by(MemoriaWork.date.desc(), MemoriaWork.title)
+    accepted_query = base.filter_by(accepted=True).order_by(MemoriaWork.date.desc(), MemoriaWork.title)
+
+    if state == "pendentes":
+        accepted_query = accepted_query.filter(db.text("1=0"))
+    elif state == "aceitos":
+        pending_query = pending_query.filter(db.text("1=0"))
+
+    pending_pagination = db.paginate(pending_query, page=max(request.args.get("page_pendentes", 1, type=int), 1), per_page=10, error_out=False)
+    accepted_pagination = db.paginate(accepted_query, page=max(request.args.get("page_aceitos", 1, type=int), 1), per_page=10, error_out=False)
+    works = pending_pagination.items
+    accepted = accepted_pagination.items
+    return render_template("admin/memoria.html", works=works, accepted=accepted, result=result, pending_pagination=pending_pagination, accepted_pagination=accepted_pagination, q=q, state=state, campus=campus)
 
 @bp.post("/memoria/<int:work_id>/aceitar")
 @admin_required
@@ -259,6 +282,34 @@ def accept_memoria(work_id):
     else:
         flash(f"“{work.title}” foi aceito e importado para o portal.", "success")
     return redirect(url_for("admin.memoria_management"))
+
+@bp.route("/memoria/<int:work_id>/editar", methods=["GET", "POST"])
+@admin_required
+def edit_memoria(work_id):
+    work = MemoriaWork.query.get_or_404(work_id)
+    if request.method == "POST":
+        work.title = request.form["title"].strip()
+        work.authors = request.form.get("authors", "").strip() or None
+        work.date = request.form.get("date", "").strip() or None
+        work.abstract = request.form.get("abstract", "").strip() or None
+        work.url = request.form["url"].strip()
+        work.campus = request.form.get("campus", "").strip() or None
+        work.work_type = request.form.get("work_type", "Trabalho de Conclusão de Curso").strip() or "Trabalho de Conclusão de Curso"
+        db.session.commit()
+        flash("TCC atualizado.", "success")
+        return redirect(url_for("admin.memoria_management", q=request.args.get("q", ""), situacao=request.args.get("situacao", "todos"), campus=request.args.get("campus", "")))
+    return render_template("admin/memoria_edit.html", work=work)
+
+@bp.post("/memoria/<int:work_id>/excluir")
+@admin_required
+def delete_memoria(work_id):
+    work = MemoriaWork.query.get_or_404(work_id)
+    work.excluded = True
+    work.active = False
+    work.accepted = False
+    db.session.commit()
+    flash(f"“{work.title}” foi excluído da gestão do portal.", "success")
+    return redirect(url_for("admin.memoria_management", q=request.args.get("q", ""), situacao=request.args.get("situacao", "todos"), campus=request.args.get("campus", "")))
 
 @bp.get("/")
 @admin_required
@@ -573,9 +624,12 @@ def faq_management():
     return render_template("admin/faq.html", faqs=_paginate(query), q=q)
 
 
+@bp.route("/editar/<resource>/<int:object_id>", methods=["GET", "POST"], endpoint="edit_resource_page")
 @bp.route("/<resource>/<int:object_id>/editar", methods=["GET", "POST"])
 @admin_required
 def edit_resource(resource, object_id):
+    if resource == "projetos":
+        return redirect(url_for("admin.edit_project", project_id=object_id))
     config = RESOURCE_CONFIG.get(resource)
     if not config:
         abort(404)
@@ -629,20 +683,85 @@ def delete_resource(resource, object_id):
 @admin_required
 def sync_projects_suap():
     from app.services.projects import sync_projects
-    types=request.form.getlist("project_types") or ["pesquisa", "extensao"]
-    start_year=request.form.get("start_year", type=int)
-    end_year=request.form.get("end_year", type=int)
-    max_pages=request.form.get("max_pages", type=int) or 5
+    types = request.form.getlist("project_types") or ["pesquisa", "extensao"]
+    start_year = request.form.get("start_year", type=int)
+    end_year = request.form.get("end_year", type=int)
+    max_pages = request.form.get("max_pages", type=int) or 5
     try:
-        imported, errors, stats = sync_projects(types, start_year, end_year, max_pages)
-        detail='; '.join(f"{k}: {v['imported']} importado(s) de {v['matched']} encontrado(s) no filtro" for k,v in stats.items())
+        _items, errors, stats = sync_projects(types, start_year, end_year, max_pages)
+        detail = '; '.join(f"{k}: {v['pending']} aguardando aceite, {v['updated']} já cadastrados" for k, v in stats.items())
         if errors:
-            flash(f"Sincronização parcial. {detail}. {'; '.join(errors)}", "warning")
+            flash(f"Consulta concluída parcialmente. {detail}. {'; '.join(errors)}", "warning")
         else:
-            flash(f"Sincronização concluída — Campus Natal-Zona Norte, {detail}.", "success")
+            flash(f"Consulta concluída. Os projetos novos ficaram aguardando aceite. {detail}.", "success")
     except Exception as exc:
-        db.session.rollback(); flash(f"Não foi possível sincronizar projetos: {exc}", "danger")
+        db.session.rollback()
+        flash(f"Não foi possível consultar projetos no SUAP: {exc}", "danger")
     return redirect(url_for("admin.projects"))
+
+
+@bp.post("/projetos/importar-selecionados")
+@admin_required
+def import_selected_projects():
+    ids = [int(value) for value in request.form.getlist("project_ids") if str(value).isdigit()]
+    if not ids:
+        flash("Selecione pelo menos um projeto para importar.", "warning")
+        return redirect(url_for("admin.projects"))
+    projects = Project.query.filter(Project.id.in_(ids), Project.import_status == "pending").all()
+    for project in projects:
+        project.import_status = "accepted"
+        project.published = True
+    db.session.commit()
+    flash(f"{len(projects)} projeto(s) importado(s) para o portal.", "success")
+    return redirect(url_for("admin.projects"))
+
+
+@bp.post("/projetos/rejeitar-selecionados")
+@admin_required
+def reject_selected_projects():
+    ids = [int(value) for value in request.form.getlist("project_ids") if str(value).isdigit()]
+    if not ids:
+        flash("Selecione pelo menos um projeto para recusar.", "warning")
+        return redirect(url_for("admin.projects"))
+    projects = Project.query.filter(Project.id.in_(ids), Project.import_status == "pending").all()
+    for project in projects:
+        project.import_status = "rejected"
+        project.published = False
+    db.session.commit()
+    flash(f"{len(projects)} projeto(s) marcado(s) para não importar.", "success")
+    return redirect(url_for("admin.projects"))
+
+
+@bp.route("/projetos/<int:project_id>/editar", methods=["GET", "POST"])
+@admin_required
+def edit_project(project_id):
+    project = Project.query.get_or_404(project_id)
+    if request.method == "POST":
+        project.title = request.form["title"]
+        project.acronym = request.form.get("acronym")
+        project.project_type = request.form["project_type"]
+        project.description = request.form["description"]
+        project.objectives = request.form.get("objectives")
+        project.coordinator = request.form.get("coordinator")
+        project.team = request.form.get("team")
+        project.period = request.form.get("period")
+        project.status = request.form.get("status")
+        project.campus = request.form.get("campus")
+        project.academic_year = request.form.get("academic_year", type=int)
+        project.funding = request.form.get("funding")
+        project.partners = request.form.get("partners")
+        project.url = request.form.get("url")
+        project.image_url = request.form.get("image_url")
+        project.is_pibid = bool(request.form.get("is_pibid"))
+        value = request.form.get("has_licenciatura_students")
+        project.has_licenciatura_students = None if value in (None, "") else value == "true"
+        project.licenciatura_notes = request.form.get("licenciatura_notes")
+        project.featured = bool(request.form.get("featured"))
+        project.published = bool(request.form.get("published"))
+        db.session.commit()
+        flash("Projeto atualizado.", "success")
+        return redirect(url_for("admin.projects"))
+    return render_template("admin/project_edit.html", project=project)
 
 
 @bp.route("/governanca/importar", methods=["POST"])
@@ -743,7 +862,7 @@ def projects():
             is_pibid=bool(request.form.get("is_pibid")),
             has_licenciatura_students=(None if request.form.get("has_licenciatura_students") in (None, "") else request.form.get("has_licenciatura_students") == "true"),
             licenciatura_notes=request.form.get("licenciatura_notes"), featured=bool(request.form.get("featured")),
-            published=bool(request.form.get("published")), source_system="manual",
+            published=bool(request.form.get("published")), source_system="manual", import_status="accepted",
         )
         db.session.add(project)
         db.session.commit()
@@ -754,7 +873,7 @@ def projects():
     status = request.args.get("status", "").strip()
     licenciatura = request.args.get("licenciatura", "").strip().lower()
     source = request.args.get("source", "").strip().lower()
-    query = Project.query.order_by(Project.project_type, Project.title)
+    query = Project.query.filter(Project.import_status != "pending").order_by(Project.project_type, Project.title)
     if q:
         from sqlalchemy import or_
         query = query.filter(or_(Project.title.ilike(f"%{q}%"), Project.coordinator.ilike(f"%{q}%"), Project.campus.ilike(f"%{q}%"), Project.description.ilike(f"%{q}%")))
@@ -770,7 +889,8 @@ def projects():
         query = query.filter(Project.has_licenciatura_students.is_(None))
     if source in ("suap", "manual"):
         query = query.filter_by(source_system=source)
-    return render_template("admin/projects.html", projects=_paginate(query), q=q, project_type=project_type, status=status, licenciatura=licenciatura, source=source)
+    pending_projects = Project.query.filter_by(import_status="pending").order_by(Project.project_type, Project.title).all()
+    return render_template("admin/projects.html", projects=_paginate(query), pending_projects=pending_projects, q=q, project_type=project_type, status=status, licenciatura=licenciatura, source=source)
 
 
 @bp.post("/projetos/<int:project_id>/excluir")
@@ -789,6 +909,31 @@ def enade_management():
     exams = EnadeExam.query.order_by(EnadeExam.year.desc()).all()
     counts = {e.id: EnadeQuestion.query.filter_by(exam_id=e.id).count() for e in exams}
     return render_template("admin/enade.html", exams=exams, counts=counts)
+
+
+@bp.post("/enade/importar-pdfs")
+@admin_required
+def import_enade_pdfs():
+    from app.services.enade import import_exam_questions_from_bytes
+    year = request.form.get("year", type=int)
+    exam_file = request.files.get("exam_pdf")
+    key_file = request.files.get("answer_key_pdf")
+    if not year:
+        flash("Selecione a edição do ENADE.", "danger")
+        return redirect(url_for("admin.enade_management"))
+    if not exam_file or not exam_file.filename or not key_file or not key_file.filename:
+        flash("Envie o PDF da prova e o PDF do gabarito.", "danger")
+        return redirect(url_for("admin.enade_management"))
+    if not exam_file.filename.lower().endswith(".pdf") or not key_file.filename.lower().endswith(".pdf"):
+        flash("Os dois arquivos precisam estar no formato PDF.", "danger")
+        return redirect(url_for("admin.enade_management"))
+    try:
+        count, answers = import_exam_questions_from_bytes(year, exam_file.read(), key_file.read())
+        flash(f"ENADE {year}: {count} questões objetivas extraídas e {answers} gabaritos identificados.", "success")
+    except Exception as exc:
+        db.session.rollback()
+        flash(f"Não foi possível processar os PDFs do ENADE {year}: {exc}", "danger")
+    return redirect(url_for("admin.enade_management"))
 
 
 @bp.post("/enade/<int:year>/importar")

@@ -26,5 +26,6 @@ class Project(db.Model):
     licenciatura_notes = db.Column(db.Text)
     featured = db.Column(db.Boolean, default=False, nullable=False)
     published = db.Column(db.Boolean, default=True, nullable=False)
+    import_status = db.Column(db.String(20), default='accepted', nullable=False, index=True)  # pending | accepted | rejected
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

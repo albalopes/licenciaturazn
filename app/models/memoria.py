@@ -18,3 +18,4 @@ class MemoriaWork(db.Model):
     active = db.Column(db.Boolean, default=False, nullable=False)
     accepted = db.Column(db.Boolean, default=False, nullable=False, index=True)
     accepted_at = db.Column(db.DateTime)
+    excluded = db.Column(db.Boolean, default=False, nullable=False, index=True)

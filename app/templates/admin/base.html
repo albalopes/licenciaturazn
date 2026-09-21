@@ -1,5 +1,5 @@
 {% extends 'layouts/base.html' %}
-{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">{% endblock %}
+{% block head %}{{ super() }}<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}?v=5016">{% endblock %}
 {% block content %}
 <div class="admin-shell">
 <aside class="admin-sidebar">
@@ -15,4 +15,4 @@
 <section class="admin-content">{% block admin_content %}{% endblock %}</section>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/admin.js') }}"></script>{% endblock %}
+{% block scripts %}{{ super() }}<script src="{{ url_for('static', filename='js/admin.js') }}?v=5016"></script>{% endblock %}

@@ -146,11 +146,11 @@ def sync_projects(project_types=None, start_year=None, end_year=None, max_pages=
     imported = []
     errors = []
     project_types = [p for p in (project_types or list(ENDPOINTS)) if p in ENDPOINTS]
-    stats = {p: {'fetched': 0, 'matched': 0, 'imported': 0} for p in project_types}
+    stats = {p: {'fetched': 0, 'matched': 0, 'pending': 0, 'updated': 0} for p in project_types}
     for ptype in project_types:
         endpoint = ENDPOINTS[ptype]
         try:
-            results, next_url = _fetch_pages(endpoint, max_pages=max_pages)
+            results, _next_url = _fetch_pages(endpoint, max_pages=max_pages)
         except Exception as exc:
             errors.append(f'{ptype}: {exc}')
             continue
@@ -174,15 +174,21 @@ def sync_projects(project_types=None, start_year=None, end_year=None, max_pages=
             if not project:
                 project = Project.query.filter_by(title=item['title'], project_type=ptype, campus=item['campus']).first()
             if not project:
-                project = Project(source_system='suap', **item)
+                # Staging: nothing becomes public before the administrator accepts it.
+                project = Project(source_system='suap', import_status='pending', published=False, **item)
                 db.session.add(project)
+                stats[ptype]['pending'] += 1
             else:
+                was_pending = project.import_status == 'pending'
                 for key, value in item.items():
                     setattr(project, key, value)
                 project.source_system = 'suap'
-            project.published = True
+                # Accepted/rejected decisions are preserved across later synchronizations.
+                if was_pending:
+                    project.published = False
+                    stats[ptype]['pending'] += 1
+                else:
+                    stats[ptype]['updated'] += 1
             imported.append(project)
-            stats[ptype]['imported'] += 1
     db.session.commit()
     return imported, errors, stats
-

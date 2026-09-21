@@ -1,0 +1,19 @@
+{% extends 'admin/base.html' %}
+{% block title %}Editar TCC · Memoria{% endblock %}
+{% block admin_content %}
+<div class="admin-header"><div><span class="eyebrow">TCC · Memoria</span><h1>Editar trabalho</h1><p class="admin-subtitle">Atualize os dados que serão exibidos no portal. O registro original permanece no Memoria.</p></div><a class="btn btn-outline" href="{{ url_for('admin.memoria_management', q=request.args.get('q',''), situacao=request.args.get('situacao','todos'), campus=request.args.get('campus','')) }}">Voltar</a></div>
+<form class="admin-form" method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<div class="form-grid">
+<label>Título<input name="title" value="{{ work.title or '' }}" required></label>
+<label>Autor(es)<input name="authors" value="{{ work.authors or '' }}"></label>
+<label>Data<input name="date" value="{{ work.date or '' }}"></label>
+<label>Campus<input name="campus" value="{{ work.campus or '' }}"></label>
+<label>Tipo<select name="work_type"><option value="Trabalho de Conclusão de Curso" {% if work.work_type == 'Trabalho de Conclusão de Curso' %}selected{% endif %}>Trabalho de Conclusão de Curso</option><option value="Outro" {% if work.work_type != 'Trabalho de Conclusão de Curso' %}selected{% endif %}>Outro</option></select></label>
+<label>URL do Memoria<input type="url" name="url" value="{{ work.url or '' }}" required></label>
+</div>
+<label>Resumo / abstract<textarea name="abstract" rows="8">{{ work.abstract or '' }}</textarea></label>
+<div class="project-source-note"><strong>Handle:</strong> {{ work.handle }} · <strong>Status:</strong> {{ 'Aceito/publicado' if work.accepted else 'Aguardando aceite' }}</div>
+<div class="admin-modal-actions"><a class="btn btn-outline" href="{{ url_for('admin.memoria_management') }}">Cancelar</a><button class="btn btn-primary">Salvar alterações</button></div>
+</form>
+{% endblock %}
