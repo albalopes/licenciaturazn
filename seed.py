@@ -25,6 +25,7 @@ from app.models import (
     TeachingAssignment,
     CourseCoordinator,
     AcademicPublication,
+    FAQ,
 )
 
 
