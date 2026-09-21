@@ -1,0 +1,55 @@
+{% extends 'layouts/base.html' %}
+{% block title %}{{ page.title }} · Licenciatura em Informática{% endblock %}
+{% block content %}
+<section class="page-header"><div class="container content-narrow"><span class="eyebrow">Vida acadêmica</span><h1>{{ page.title }}</h1><p>Veja quais atividades podem ser aproveitadas conforme a matriz curricular do estudante.</p></div></section>
+<section class="section"><div class="container">
+  <div class="ppc-switcher" role="tablist" aria-label="Versão do PPC">
+    <a class="ppc-tab {{ 'active' if active_ppc=='2026' else '' }}" href="?ppc=2026"><strong>PPC 2026</strong><span>Ingressantes a partir de 2027</span></a>
+    <a class="ppc-tab {{ 'active' if active_ppc=='2018' else '' }}" href="?ppc=2018"><strong>PPC 2018</strong><span>Ingressantes a partir de 2019</span></a>
+    <a class="ppc-tab {{ 'active' if active_ppc=='2012' else '' }}" href="?ppc=2012"><strong>PPC 2012</strong><span>Turmas anteriores à implantação do PPC 2018</span></a>
+    <a class="ppc-tab {{ 'active' if active_ppc=='2009' else '' }}" href="?ppc=2009"><strong>PPC 2009</strong><span>Turmas da implantação do curso</span></a>
+  </div>
+
+  {% if active_ppc == '2026' %}
+  <article class="ppc-panel"><div class="eyebrow">Matriz mais recente</div><h2>PPC 2026</h2><div class="notice-card"><strong>Informações em atualização</strong><p>O portal reserva esta aba para os estudantes vinculados ao PPC 2026, correspondente aos ingressantes a partir de 2027. A tabela de atividades será publicada após a disponibilização do documento oficial do PPC.</p></div></article>
+  {% elif active_ppc == '2018' %}
+  <article class="ppc-panel"><div class="eyebrow">Ingressantes a partir de 2019</div><h2>ATPA — 200 horas</h2><p>O PPC 2018 estabelece, no mínimo, 200 horas de Atividades Teórico-Práticas de Aprofundamento, reconhecidas pelo Colegiado. O somatório deve tomar como referência o Quadro 8 do PPC.</p>
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>Atividade</th><th>Horas por atividade</th></tr></thead><tbody>
+    <tr><td>Participação em conferências, palestras, congressos, seminários ou outros eventos acadêmico-artístico-culturais, na área do curso ou afim</td><td>Conforme certificação ou 4h por turno</td></tr>
+    <tr><td>Participação em curso na área de formação ou afim</td><td>Carga horária constante no certificado</td></tr>
+    <tr><td>Exposição de trabalhos em eventos ou publicação de trabalhos na área do curso ou afim</td><td>25h</td></tr>
+    <tr><td>Publicações de trabalhos em revistas ou periódicos na área do curso ou afim</td><td>50h</td></tr>
+    <tr><td>Coautoria de capítulos de livros na área do curso ou afim</td><td>75h</td></tr>
+    <tr><td>Participação em projeto de extensão, como bolsista ou voluntário, na área do curso</td><td>50h por projeto semestral ou 100h por projeto anual</td></tr>
+    <tr><td>Participação em projeto de pesquisa, como bolsista ou voluntário, na área do curso ou afim</td><td>50h por projeto semestral ou 100h por projeto anual</td></tr>
+    <tr><td>Participação em projeto de ensino, como bolsista ou voluntário, na área do curso ou afim</td><td>50h por projeto semestral ou 100h por projeto anual</td></tr>
+    <tr><td>Desenvolvimento de tutoria/monitoria, como bolsista ou voluntário, na área do curso ou afim</td><td>25h por processo seletivo</td></tr>
+    <tr><td>Participação na organização de eventos acadêmico-científicos na área do curso</td><td>20h</td></tr>
+    <tr><td>Realização de estágio extracurricular ou voluntário na área do curso ou afim, com carga horária total mínima de 50 horas</td><td>50h por estágio semestral ou 100h por estágio anual</td></tr>
+    <tr><td>Participação em programas de iniciação à docência</td><td>40h por semestre</td></tr>
+    <tr><td>Participação ou desenvolvimento de outras atividades específicas do curso, como ouvinte em bancas de TCC ou outras previstas no PPC</td><td>De acordo com a carga horária da atividade</td></tr>
+    <tr><td>Participação em Colegiados, representação estudantil e outras representações</td><td>10h por comissão/representação</td></tr>
+  </tbody></table></div>
+  <p class="table-note">* Caso o certificado do evento não apresente a carga horária, será considerada a carga horária de 4h por turno. Para contabilização, o estudante deve solicitar a validação por requerimento dirigido à Coordenação do Curso, utilizando o SUAP.</p></article>
+  {% elif active_ppc == '2009' %}
+  <article class="ppc-panel"><div class="eyebrow">Turmas da implantação do curso</div><h2>PPC 2009 — 200 horas</h2><p>O PPC 2009 prevê 200 horas de Atividades Acadêmico-Científico-Culturais. Entre as atividades reconhecidas estão conferências e palestras, cursos e minicursos, encontros estudantis, iniciação científica, monitoria, voluntariado, publicações, visitas técnicas, extensão, congressos, exposições de trabalhos, grupos de estudo e representação estudantil.</p><p>A validação é solicitada à Coordenação com os respectivos documentos comprobatórios. Consulte o PPC para os limites específicos por atividade.</p><p><a class="btn btn-outline" href="/static/docs/ppc_licenciatura_informatica_2009.pdf" target="_blank" rel="noopener">Consultar PPC 2009 em PDF →</a></p></article>
+  <article class="ppc-panel"><div class="eyebrow">Turmas anteriores à implantação do PPC 2018</div><h2>Outras Atividades Acadêmico-Científico-Culturais — 200 horas</h2><p>No PPC 2012, a denominação utilizada é <strong>Outras Atividades Acadêmico-Científico-Culturais</strong>. O estudante deveria cumprir, no mínimo, 200 horas, reconhecidas pelo Colegiado do Curso. A tabela abaixo reproduz o Quadro 7 do PPC.</p>
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>Atividade</th><th>Máximo semestral</th><th>Máximo em todo o curso</th></tr></thead><tbody>
+    <tr><td>Participação em conferências, palestras, congressos ou seminários, na área do curso ou afim</td><td>5 pontos</td><td>20 pontos</td></tr>
+    <tr><td>Participação em curso na área de formação ou afim</td><td>5 pontos a cada 10 horas de curso</td><td>20 pontos</td></tr>
+    <tr><td>Exposição de trabalhos em eventos ou publicação de trabalhos em anais na área do curso ou afim</td><td>10 pontos</td><td>20 pontos</td></tr>
+    <tr><td>Publicações de trabalhos em revistas ou periódicos na área do curso ou afim</td><td>10 pontos</td><td>20 pontos</td></tr>
+    <tr><td>Coautoria de capítulos de livros na área do curso ou afim</td><td>10 pontos</td><td>20 pontos</td></tr>
+    <tr><td>Participação em projeto de extensão, como bolsista ou voluntário, na área do curso</td><td>25 pontos</td><td>50 pontos</td></tr>
+    <tr><td>Participação em projeto de iniciação científica ou de iniciação à docência, como bolsista ou voluntário, na área do curso ou afim</td><td>25 pontos</td><td>50 pontos</td></tr>
+    <tr><td>Desenvolvimento de monitoria, como bolsista ou voluntário, na área do curso ou afim</td><td>25 pontos</td><td>50 pontos</td></tr>
+    <tr><td>Participação na organização de eventos acadêmico-científicos na área do curso</td><td>25 pontos</td><td>50 pontos</td></tr>
+    <tr><td>Realização de estágio extracurricular ou voluntário na área do curso ou afim, com carga horária total mínima de 50 horas</td><td>25 pontos</td><td>50 pontos</td></tr>
+    <tr><td>Viagem/visita técnica na área do curso ou diretamente afim</td><td>10 pontos</td><td>50 pontos</td></tr>
+    <tr><td>Membro de diretoria discente ou colegiado acadêmico no IFRN</td><td>10 pontos</td><td>50 pontos</td></tr>
+    <tr><td>Núcleos de estudos ou grupos de discussão na área do curso ou diretamente afim</td><td>10 pontos</td><td>50 pontos</td></tr>
+  </tbody></table></div>
+  <p class="table-note">No PPC 2012, a pontuação acumulada é revertida em horas: cada ponto corresponde a 1 hora, exceto a participação em cursos, em que cada ponto corresponde a 0,5 hora. A validação exige documentos comprobatórios; cada documento só pode ser contabilizado uma vez e somente podem ser contabilizadas atividades realizadas enquanto o aluno estiver vinculado ao curso.</p></article>
+  {% endif %}
+</div></section>
+{% endblock %}

@@ -30,12 +30,18 @@ services:
       SUAP_ENDPOINT_MY_DATA: ${SUAP_ENDPOINT_MY_DATA:-rh/meus-dados/}
       SUAP_ENDPOINT_STUDENT_DATA: ${SUAP_ENDPOINT_STUDENT_DATA:-ensino/meus-dados-aluno/}
       SUAP_ENDPOINT_SERVERS: ${SUAP_ENDPOINT_SERVERS:-rh/servidores/}
+      SUAP_CAMPUS_SIGLA: ${SUAP_CAMPUS_SIGLA:-ZN}
       SUAP_ENDPOINT_PROJECTS_RESEARCH: ${SUAP_ENDPOINT_PROJECTS_RESEARCH:-pesquisa/projetos/}
       SUAP_ENDPOINT_PROJECTS_EXTENSION: ${SUAP_ENDPOINT_PROJECTS_EXTENSION:-extensao/projetos/}
       SUAP_ENDPOINT_PROJECTS_TEACHING: ${SUAP_ENDPOINT_PROJECTS_TEACHING:-}
       SUAP_PROJECT_CAMPUS: ${SUAP_PROJECT_CAMPUS:-Natal-Zona-Norte}
-      SUAP_ENDPOINT_VIRTUAL_CLASSES: ${SUAP_ENDPOINT_VIRTUAL_CLASSES:-meu-diario/turmas-virtuais/}
-      SUAP_ENDPOINT_REPORT: ${SUAP_ENDPOINT_REPORT:-meu-diario/boletim/{year}/{period}/}
+      SUAP_ENDPOINT_VIRTUAL_CLASSES: ${SUAP_ENDPOINT_VIRTUAL_CLASSES:-ensino/minhas-turmas-virtuais/{year}/{period}/}
+      SUAP_ENDPOINT_REPORT: ${SUAP_ENDPOINT_REPORT:-ensino/meu-boletim/{year}/{period}/}
+      SUAP_ENDPOINT_DISCIPLINES: ${SUAP_ENDPOINT_DISCIPLINES:-ensino/disciplinas/{year}.{period}/}
+      SUAP_ENDPOINT_COMPLETION_REQUIREMENTS: ${SUAP_ENDPOINT_COMPLETION_REQUIREMENTS:-ensino/requisitos-conclusao/}
+      SUAP_ENDPOINT_FREQUENCY: ${SUAP_ENDPOINT_FREQUENCY:-ensino/frequencia-periodo-letivo/{year}/{period}/}
+      SUAP_ENDPOINT_UPCOMING_EVALUATIONS: ${SUAP_ENDPOINT_UPCOMING_EVALUATIONS:-ensino/minhas-proximas-avaliacoes/}
+      SUAP_ENDPOINT_CALENDAR: ${SUAP_ENDPOINT_CALENDAR:-ensino/meu-calendario-academico/{year}/{period}/}
       SUAP_ENDPOINT_SCHEDULE: ${SUAP_ENDPOINT_SCHEDULE:-meu-diario/horario/{year}/{period}/}
       ADMIN_SUAP_USERS: ${ADMIN_SUAP_USERS:-}
 

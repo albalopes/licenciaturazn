@@ -84,8 +84,25 @@ class Teacher(db.Model):
     orcid_url = db.Column(db.String(500))
     education = db.Column(db.Text)
     areas = db.Column(db.Text)
+    ingresso_disciplina = db.Column(db.String(180))
     bio = db.Column(db.Text)
     active = db.Column(db.Boolean, default=True, nullable=False)
+
+
+class TeachingAssignment(db.Model):
+    __tablename__ = "teaching_assignments"
+    id = db.Column(db.Integer, primary_key=True)
+    teacher_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), index=True)
+    teacher_name = db.Column(db.String(240))
+    semester = db.Column(db.String(20), nullable=False, index=True)
+    course = db.Column(db.String(180), nullable=False)
+    class_code = db.Column(db.String(80))
+    weekday = db.Column(db.String(20), nullable=False)
+    start_time = db.Column(db.String(5), nullable=False)
+    end_time = db.Column(db.String(5), nullable=False)
+    room = db.Column(db.String(120))
+    source = db.Column(db.String(500))
+    teacher = db.relationship("Teacher", backref=db.backref("teaching_assignments", lazy="dynamic"))
 
 
 class SitePage(db.Model):
@@ -122,6 +139,24 @@ class AcademicEvent(db.Model):
     published = db.Column(db.Boolean, default=True, nullable=False)
 
 
+class AcademicPublication(db.Model):
+    __tablename__ = "academic_publications"
+    id = db.Column(db.Integer, primary_key=True)
+    year = db.Column(db.Integer, nullable=False, index=True)
+    title = db.Column(db.String(300), nullable=False)
+    authors = db.Column(db.Text, nullable=False)
+    event = db.Column(db.String(220), index=True)
+    publication_type = db.Column(db.String(80), default="Artigo em evento", index=True)
+    themes = db.Column(db.String(500), index=True)
+    student_authors = db.Column(db.Text)
+    teacher_authors = db.Column(db.Text)
+    doi = db.Column(db.String(300))
+    url = db.Column(db.String(700), nullable=False)
+    source = db.Column(db.String(700))
+    description = db.Column(db.Text)
+    published = db.Column(db.Boolean, default=True, nullable=False, index=True)
+
+
 class GovernanceMember(db.Model):
     __tablename__ = "governance_members"
     id = db.Column(db.Integer, primary_key=True)
@@ -136,6 +171,20 @@ class GovernanceMember(db.Model):
     governance_document_id = db.Column(db.Integer, db.ForeignKey("governance_documents.id"))
     document = db.relationship("GovernanceDocument", back_populates="members")
     active = db.Column(db.Boolean, default=True, nullable=False)
+
+
+class CourseCoordinator(db.Model):
+    __tablename__ = "course_coordinators"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(180), nullable=False)
+    teacher_id = db.Column(db.Integer, db.ForeignKey("teachers.id"), index=True)
+    start_year = db.Column(db.Integer, nullable=False)
+    end_year = db.Column(db.Integer)
+    role = db.Column(db.String(120), default="Coordenador(a) do curso", nullable=False)
+    profile_url = db.Column(db.String(500))
+    notes = db.Column(db.Text)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    teacher = db.relationship("Teacher")
 
 
 class EntranceSchedule(db.Model):
@@ -161,3 +210,6 @@ class FAQ(db.Model):
 from .knowledge import KnowledgeChunk, KnowledgeSource
 from .project import Project
 from .governance import GovernanceDocument, TeacherHistory
+
+from .enade import EnadeExam, EnadeQuestion, EnadeAttempt
+from .memoria import MemoriaWork

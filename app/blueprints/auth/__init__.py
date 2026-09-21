@@ -12,7 +12,7 @@ bp = Blueprint("auth", __name__)
 @bp.get("/login")
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for("admin.dashboard" if current_user.is_admin else "public.home"))
+        return redirect(url_for("admin.dashboard" if current_user.is_admin else "student.enade_dashboard"))
     if not current_app_is_configured():
         return render_template("auth/login.html", oauth_configured=False)
     state = secrets.token_urlsafe(32)
@@ -42,14 +42,10 @@ def callback():
         store_tokens(token_data)
         data = current_user_data()
         user = upsert_suap_user(data)
-        if not user.is_admin:
-            session.clear()
-            flash("Seu usuário foi autenticado, mas não possui acesso à área administrativa.", "warning")
-            return redirect(url_for("public.home"))
         login_user(user, remember=False)
         session.permanent = True
         flash(f"Bem-vindo(a), {user.name}.", "success")
-        return redirect(url_for("admin.dashboard"))
+        return redirect(url_for("admin.dashboard" if user.is_admin else "student.enade_dashboard"))
     except (SuapOAuthError, ValueError) as exc:
         session.clear()
         flash(f"Não foi possível autenticar pelo SUAP: {exc}", "danger")

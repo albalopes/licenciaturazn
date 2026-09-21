@@ -11,7 +11,7 @@ Projeto base em Flask para o portal acadêmico da Licenciatura em Informática d
 - Flask-Migrate para evolução do banco.
 - Área administrativa protegida pelo Flask-Login.
 - Login preparado para OAuth2 Authorization Code do SUAP.
-- Separação de dados por matriz: 2012, 2018 e 2026.
+- Separação de dados por matriz: 2009, 2012, 2018 e 2026.
 - Matriz com visualização em cards ou quadro/tabela.
 - Página individual de disciplina com plano de curso.
 - CSS e JavaScript separados em `app/static`.
@@ -90,7 +90,7 @@ A área `/admin` possui telas iniciais para:
 ## Próximas evoluções recomendadas
 
 1. Importador oficial do PPC 2018 para a matriz e planos de curso.
-2. Cadastro completo da matriz 2012.
+2. Cadastro completo das matrizes 2009 e 2012, mantendo suas regras históricas separadas.
 3. Importador do novo PPC 2026 assim que publicado.
 4. CRUD completo para pré-requisitos e correquisitos.
 5. CRUD para Colegiado e NDE com portarias e atas.
@@ -134,7 +134,7 @@ A chave da API deve ficar somente no servidor. Nunca coloque a chave no JavaScri
 
 ### Documentos iniciais
 
-O projeto acompanha uma cópia do PPC 2012 utilizado no desenvolvimento anterior, em `data/knowledge/`. O `seed.py` tenta indexá-lo automaticamente. A Organização Didática e o PPC 2018 devem ser cadastrados pelo painel administrativo a partir das versões oficiais correspondentes.
+O projeto acompanha cópias dos PPCs 2009, 2012 e 2018 utilizados como fontes primárias do catálogo curricular, em `app/static/docs/` e `data/knowledge/`. O `seed.py` tenta indexar os três documentos automaticamente. A Organização Didática vigente permanece como fonte normativa separada.
 
 ### Observação institucional
 
@@ -149,3 +149,12 @@ Na administração, o menu **Projetos** permite cadastrar título, sigla, catego
 
 ### API do SUAP
 A integração de projetos e fotos de servidores utiliza exclusivamente a API atual documentada em `https://suap.ifrn.edu.br/api/docs/`. Os endpoints confirmados são Pesquisa (`/api/pesquisa/projetos/`), Extensão (`/api/extensao/projetos/`) e servidor resumido (`/api/rh/servidor-resumido/?matricula=...`). A documentação fornecida não apresenta endpoint de Projetos de Ensino; por isso Ensino permanece disponível para cadastro manual. Nenhuma rota `/api/v2/` é utilizada.
+
+## Atualização PPC 2009
+
+Esta versão incorpora o PPC 2009, aprovado pela Resolução nº 071/2009-CONSUP/IFRN, com matriz de 8 semestres e 3.070 horas. O histórico de coordenação foi ampliado com Bruno Sielly Jales Costa, João Maria Nascimento (período aproximado), Diego Silveira Costa Nascimento, Otávio Bruno Leite Barbosa, Francisco das Chagas da Silva Júnior e Alba Sandyra Bezerra Lopes Campos. O intervalo inicial de 2009 até dezembro de 2010 permanece explicitamente marcado como não identificado nas fontes consultadas.
+
+
+## Eventos e produção acadêmica
+
+A rota `/eventos` apresenta os eventos regulares da Licenciatura em Informática (SELINFO, MALI e SECIT) e um catálogo inicial de publicações de estudantes/docentes, com filtros por ano, tema, evento e autor. A documentação da pesquisa está em `docs/PRODUCAO_ACADEMICA.md`.

@@ -122,8 +122,36 @@ def my_periods():
     return api_get(current_app.config["SUAP_ENDPOINT_PERIODS"])
 
 
-def my_virtual_classes():
-    return api_get(current_app.config["SUAP_ENDPOINT_VIRTUAL_CLASSES"])
+def my_virtual_classes(year: int | None = None, period: int | None = None):
+    endpoint = current_app.config["SUAP_ENDPOINT_VIRTUAL_CLASSES"]
+    if "{year}" in endpoint or "{period}" in endpoint:
+        if year is None or period is None:
+            raise SuapOAuthError("Ano e período são necessários para consultar as turmas virtuais.")
+        endpoint = endpoint.format(year=year, period=period)
+    return api_get(endpoint)
+
+
+def my_disciplines(year: int, period: int):
+    endpoint = current_app.config["SUAP_ENDPOINT_DISCIPLINES"].format(year=year, period=period)
+    return api_get(endpoint)
+
+
+def my_completion_requirements():
+    return api_get(current_app.config["SUAP_ENDPOINT_COMPLETION_REQUIREMENTS"])
+
+
+def my_frequency(year: int, period: int):
+    endpoint = current_app.config["SUAP_ENDPOINT_FREQUENCY"].format(year=year, period=period)
+    return api_get(endpoint)
+
+
+def my_upcoming_evaluations():
+    return api_get(current_app.config["SUAP_ENDPOINT_UPCOMING_EVALUATIONS"])
+
+
+def my_calendar(year: int, period: int):
+    endpoint = current_app.config["SUAP_ENDPOINT_CALENDAR"].format(year=year, period=period)
+    return api_get(endpoint)
 
 
 def my_report(year: int, period: int):

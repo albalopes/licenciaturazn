@@ -1,0 +1,13 @@
+{% extends 'layouts/base.html' %}
+{% block title %}Horários{% endblock %}
+{% block content %}
+<section class="page-header"><div class="container"><span class="eyebrow">Licenciatura em Informática</span><h1>Horários das turmas</h1><p>Escolha o semestre e consulte a semana de cada turma. Os dias ficam nas colunas para facilitar a visualização do seu horário.</p><form class="inline-filter" method="get"><label>Semestre<select name="semestre" onchange="this.form.submit()">{% for sem in semesters %}<option value="{{ sem }}" {% if sem==semester %}selected{% endif %}>{{ sem }}</option>{% endfor %}</select></label></form></div></section>
+<section class="section"><div class="container">
+{% for class_code, rows in class_grids.items() %}
+<article class="schedule-class-panel"><div class="schedule-class-head"><div><span class="eyebrow">Turma</span><h2>{{ class_code }}</h2></div><span>{{ semester }}</span></div>
+<div class="table-wrap"><table class="data-table weekly-schedule"><thead><tr><th>Horário</th>{% for day in weekdays %}<th>{{ day }}</th>{% endfor %}</tr></thead><tbody>
+{% for row in rows %}<tr><th>{{ row.start }}–{{ row.end }}</th>{% for day in weekdays %}<td>{% for item in row.days[day] %}<div class="schedule-cell"><strong>{{ item.course }}</strong><span>{% if item.teacher_id %}<a href="{{ url_for('public.teacher_detail', teacher_id=item.teacher_id) }}">{{ item.teacher_name or item.teacher.name }}</a>{% else %}{{ item.teacher_name or '—' }}{% endif %}</span>{% if item.room %}<small>{{ item.room }}</small>{% endif %}</div>{% endfor %}</td>{% endfor %}</tr>{% endfor %}
+</tbody></table></div></article>
+{% else %}<div class="empty">Ainda não há horários cadastrados para este semestre.</div>{% endfor %}
+</div></section>
+{% endblock %}

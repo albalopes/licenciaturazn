@@ -1,0 +1,10 @@
+{% extends 'layouts/base.html' %}
+{% block title %}Meu horário · Licenciatura em Informática{% endblock %}
+{% block content %}
+<section class="page-header"><div class="container content-narrow"><span class="eyebrow">Área do aluno</span><h1>Meu horário</h1><p>Seu horário de aulas em uma visualização simples, com disciplina, horário e local.</p></div></section>
+<section class="section"><div class="container">
+  <div class="student-nav"><a href="{{ student_url('student.dashboard') }}">Visão geral</a><a href="{{ student_url('student.trajectory') }}">Minha trajetória</a><a href="{{ student_url('student.report') }}">Boletim</a><a class="active" href="{{ student_url('student.schedule') }}">Horário</a><a href="{{ student_url('student.classes') }}">Turmas</a><a href="{{ student_url('student.enade_dashboard') }}">ENADE</a></div>
+  <div class="toolbar"><div class="filters"><select onchange="if(this.value) location.href='{{ student_url('student.schedule') }}{% if demo %}&period={% else %}?period={% endif %}'+this.value"><option value="">Selecione um período</option>{% for p in periods %}<option value="{{ p.label }}" {% if selected_period and selected_period.label==p.label %}selected{% endif %}>{{ p.label }}</option>{% endfor %}</select></div></div>
+  {% if schedule_entries %}<div class="student-schedule-grid">{% for item in schedule_entries %}<article class="schedule-card"><span>{{ item.day }} · {{ item.time }}</span><h3>{{ item.code }}</h3><p>{{ item.name }}</p>{% if item.location %}<small>📍 {{ item.location }}</small>{% endif %}</article>{% endfor %}</div>{% else %}<div class="empty">O SUAP não retornou horários para o período consultado.</div>{% endif %}
+</div></section>
+{% endblock %}

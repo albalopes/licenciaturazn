@@ -1,21 +1,25 @@
 from functools import wraps
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for, current_app
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for, current_app, g, Response
 from math import ceil
 from datetime import datetime
 from flask_login import current_user, login_required
 
 from app.extensions import db
-from app.models import AcademicEvent, Discipline, Document, Matrix, Project, SitePage, Teacher, KnowledgeSource, GovernanceMember, GovernanceDocument, EntranceSchedule, FAQ
+from app.models import AcademicEvent, Discipline, Document, Matrix, Project, SitePage, Teacher, KnowledgeSource, GovernanceMember, GovernanceDocument, EntranceSchedule, FAQ, EnadeExam, EnadeQuestion, EnadeAttempt, User, MemoriaWork, TeachingAssignment, CourseCoordinator
 
 bp = Blueprint("admin", __name__)
 
-RESOURCE_ENDPOINTS = {"matrizes":"matrices", "disciplinas":"disciplines", "docentes":"teachers", "paginas":"pages", "documentos":"documents", "eventos":"events", "projetos":"projects", "entradas":"entrance_management", "faq":"faq_management", "portarias":"governance_management", "membros-governanca":"governance_management", "conhecimento":"knowledge_management"}
+RESOURCE_ENDPOINTS = {"matrizes":"matrices", "disciplinas":"disciplines", "docentes":"teachers", "paginas":"pages", "documentos":"documents", "eventos":"events", "projetos":"projects", "entradas":"entrance_management", "faq":"faq_management", "portarias":"governance_management", "membros-governanca":"governance_management", "coordenadores":"coordinators_management", "conhecimento":"knowledge_management"}
 
 RESOURCE_CONFIG = {
     "matrizes": {"model": Matrix, "label": "Matriz", "fields": [
         ("year", "Ano", "number"), ("title", "Título", "text"), ("status", "Status", "text"), ("description", "Descrição", "textarea"),
         ("document_url", "Documento (URL)", "url"), ("duration_semesters", "Semestres", "number"), ("total_hours", "Carga horária", "number"), ("is_published", "Publicada", "checkbox")],
+    },
+    "coordenadores": {"model": CourseCoordinator, "label": "Coordenador(a) anterior", "fields": [
+        ("name", "Nome", "text"), ("start_year", "Ano inicial", "number"), ("end_year", "Ano final", "number"),
+        ("role", "Função", "text"), ("profile_url", "Página/perfil", "url"), ("notes", "Observações", "textarea"), ("active", "Publicado", "checkbox")],
     },
     "disciplinas": {"model": Discipline, "label": "Disciplina", "fields": [
         ("matrix_id", "Matriz", "matrix"), ("code", "Código", "text"), ("name", "Nome", "text"), ("semester", "Semestre", "number"),
@@ -24,7 +28,7 @@ RESOURCE_CONFIG = {
         ("assessment", "Avaliação", "textarea"), ("bibliography_basic", "Bibliografia básica", "textarea"), ("bibliography_complementary", "Bibliografia complementar", "textarea"), ("support_software", "Softwares", "textarea")],
     },
     "docentes": {"model": Teacher, "label": "Docente", "fields": [
-        ("name", "Nome", "text"), ("siape", "SIAPE/matrícula", "text"), ("photo_url", "Foto (URL)", "url"), ("email", "E-mail", "email"), ("lattes_url", "Lattes", "url"), ("orcid_url", "ORCID", "url"),
+        ("name", "Nome", "text"), ("siape", "SIAPE/matrícula", "text"), ("ingresso_disciplina", "Disciplina de ingresso", "text"), ("photo_url", "Foto (URL)", "url"), ("email", "E-mail", "email"), ("lattes_url", "Lattes", "url"), ("orcid_url", "ORCID", "url"),
         ("education", "Formação", "textarea"), ("areas", "Áreas", "textarea"), ("bio", "Biografia", "textarea"), ("active", "Ativo", "checkbox")],
     },
     "paginas": {"model": SitePage, "label": "Página", "fields": [("slug","Slug","text"),("title","Título","text"),("category","Categoria","text"),("content","Conteúdo","textarea"),("published","Publicada","checkbox")]},
@@ -41,7 +45,18 @@ RESOURCE_CONFIG = {
 def _paginate(query):
     page = max(request.args.get("page", 1, type=int), 1)
     per_page = min(max(request.args.get("per_page", 20, type=int), 5), 100)
-    return db.paginate(query, page=page, per_page=per_page, error_out=False)
+    pagination = db.paginate(query, page=page, per_page=per_page, error_out=False)
+    # Expose the current pagination object to the shared admin pagination
+    # partial. The resource templates keep their resource-specific variable
+    # (matrices, disciplines, projects, etc.) while the partial uses
+    # ``pagination`` for the navigation controls.
+    g.admin_pagination = pagination
+    return pagination
+
+
+@bp.app_context_processor
+def inject_admin_pagination():
+    return {"pagination": getattr(g, "admin_pagination", None)}
 
 
 def _apply_search(query, model, fields):
@@ -63,6 +78,150 @@ def admin_required(view):
     return wrapped
 
 
+
+
+@bp.get("/visao-aluno")
+@admin_required
+def student_preview():
+    return redirect(url_for("student.dashboard", demo="1"))
+
+
+@bp.get("/enade/resultados")
+@admin_required
+def enade_results():
+    exams = EnadeExam.query.filter_by(active=True).order_by(EnadeExam.year.desc()).all()
+    selected_exam = request.args.get("ano", type=int)
+    exam = EnadeExam.query.filter_by(id=selected_exam).first() if selected_exam else (exams[0] if exams else None)
+    results = []
+    if exam:
+        rows = (db.session.query(EnadeAttempt, EnadeQuestion, User)
+                .join(EnadeQuestion, EnadeAttempt.question_id == EnadeQuestion.id)
+                .join(User, EnadeAttempt.user_id == User.id)
+                .filter(EnadeQuestion.exam_id == exam.id)
+                .all())
+        grouped = {}
+        for attempt, question, user in rows:
+            item = grouped.setdefault(user.id, {"user": user, "answered": 0, "correct": 0, "points": 0.0, "last": None})
+            item["answered"] += 1
+            item["correct"] += int(bool(attempt.is_correct))
+            item["points"] += float(attempt.score or 0)
+            if item["last"] is None or attempt.answered_at > item["last"]:
+                item["last"] = attempt.answered_at
+        total = EnadeQuestion.query.filter_by(exam_id=exam.id, active=True).count()
+        for item in grouped.values():
+            item["total"] = total
+            item["accuracy"] = round(item["correct"] * 100 / item["answered"], 1) if item["answered"] else 0
+            item["completion"] = round(item["answered"] * 100 / total, 1) if total else 0
+        results = sorted(grouped.values(), key=lambda x: (x["points"], x["accuracy"], x["answered"]), reverse=True)
+    return render_template("admin/enade_results.html", exams=exams, exam=exam, results=results)
+
+
+@bp.get("/enade/resultados.csv")
+@admin_required
+def enade_results_csv():
+    import csv, io
+    exam = EnadeExam.query.filter_by(id=request.args.get("ano", type=int)).first() if request.args.get("ano") else EnadeExam.query.order_by(EnadeExam.year.desc()).first()
+    if not exam:
+        return Response("", mimetype="text/csv")
+    rows = (db.session.query(EnadeAttempt, EnadeQuestion, User)
+            .join(EnadeQuestion, EnadeAttempt.question_id == EnadeQuestion.id)
+            .join(User, EnadeAttempt.user_id == User.id)
+            .filter(EnadeQuestion.exam_id == exam.id).all())
+    grouped = {}
+    for attempt, question, user in rows:
+        item = grouped.setdefault(user.id, {"name": user.name, "registration": user.registration or "", "answered": 0, "correct": 0, "points": 0.0, "last": None})
+        item["answered"] += 1; item["correct"] += int(bool(attempt.is_correct)); item["points"] += float(attempt.score or 0)
+        if item["last"] is None or attempt.answered_at > item["last"]: item["last"] = attempt.answered_at
+    out=io.StringIO(); w=csv.writer(out); w.writerow(["ano","aluno","matricula","questoes_respondidas","acertos","aproveitamento_percentual","pontos","ultima_resposta"])
+    for item in sorted(grouped.values(), key=lambda x: x["name"]):
+        accuracy=round(item["correct"]*100/item["answered"],1) if item["answered"] else 0
+        w.writerow([exam.year,item["name"],item["registration"],item["answered"],item["correct"],accuracy,item["points"],item["last"].isoformat() if item["last"] else ""])
+    return Response("\ufeff"+out.getvalue(), mimetype="text/csv", headers={"Content-Disposition": f"attachment; filename=enade_{exam.year}_resultados.csv"})
+
+
+@bp.get("/enade/resultados-anonimo.csv")
+@admin_required
+def enade_results_anonymous_csv():
+    import csv, io, hashlib
+    exam = EnadeExam.query.filter_by(id=request.args.get("ano", type=int)).first() if request.args.get("ano") else EnadeExam.query.order_by(EnadeExam.year.desc()).first()
+    if not exam:
+        return Response("", mimetype="text/csv")
+    rows = (db.session.query(EnadeAttempt, EnadeQuestion, User)
+            .join(EnadeQuestion, EnadeAttempt.question_id == EnadeQuestion.id)
+            .join(User, EnadeAttempt.user_id == User.id)
+            .filter(EnadeQuestion.exam_id == exam.id).all())
+    grouped = {}
+    for attempt, question, user in rows:
+        key = hashlib.sha256(str(user.id).encode()).hexdigest()[:10]
+        item = grouped.setdefault(key, {"answered": 0, "correct": 0, "points": 0.0})
+        item["answered"] += 1; item["correct"] += int(bool(attempt.is_correct)); item["points"] += float(attempt.score or 0)
+    out=io.StringIO(); w=csv.writer(out); w.writerow(["ano","participante","questoes_respondidas","acertos","aproveitamento_percentual","pontos"])
+    for i,item in enumerate(grouped.values(),1):
+        accuracy=round(item["correct"]*100/item["answered"],1) if item["answered"] else 0
+        w.writerow([exam.year,f"Participante {i:03d}",item["answered"],item["correct"],accuracy,item["points"]])
+    return Response("\ufeff"+out.getvalue(), mimetype="text/csv", headers={"Content-Disposition": f"attachment; filename=enade_{exam.year}_resultados_anonimos.csv"})
+
+
+@bp.route("/horarios", methods=["GET", "POST"])
+@admin_required
+def schedule_management():
+    if request.method == "POST":
+        teacher = Teacher.query.get(request.form.get("teacher_id", type=int))
+        if not teacher:
+            flash("Selecione um docente válido.", "danger")
+            return redirect(url_for("admin.schedule_management"))
+        db.session.add(TeachingAssignment(
+            teacher_id=teacher.id, teacher_name=teacher.name,
+            semester=request.form["semester"], course=request.form["course"],
+            class_code=request.form.get("class_code"), weekday=request.form["weekday"],
+            start_time=request.form["start_time"], end_time=request.form["end_time"],
+            room=request.form.get("room"), source=request.form.get("source") or "Cadastro administrativo"
+        ))
+        db.session.commit()
+        flash("Registro de horário adicionado ao histórico.", "success")
+        return redirect(url_for("admin.schedule_management"))
+    semester=request.args.get("semestre", "")
+    query=TeachingAssignment.query.join(Teacher, isouter=True).order_by(TeachingAssignment.semester.desc(), TeachingAssignment.weekday, TeachingAssignment.start_time)
+    if semester:
+        query=query.filter(TeachingAssignment.semester==semester)
+    assignments=query.all()
+    return render_template("admin/schedule.html", assignments=assignments, teachers=Teacher.query.filter_by(active=True).order_by(Teacher.name).all(), semester=semester)
+
+@bp.post("/horarios/importar-2026-2")
+@admin_required
+def import_schedule_2026_2():
+    from pathlib import Path
+    import json
+    path=Path(current_app.root_path).parent / "data" / "licenciatura_horarios_2026_2.json"
+    if not path.exists():
+        flash("Arquivo de horário não encontrado no projeto.", "danger")
+        return redirect(url_for("admin.schedule_management"))
+    items=json.loads(path.read_text(encoding="utf-8"))
+    TeachingAssignment.query.filter_by(semester="2026.2").delete(synchronize_session=False)
+    for item in items:
+        for name in [n.strip() for n in item["teacher"].split("/")]:
+            teacher=Teacher.query.filter(Teacher.name.ilike(name)).first()
+            if not teacher:
+                teacher=Teacher(name=name, active=True); db.session.add(teacher); db.session.flush()
+            db.session.add(TeachingAssignment(teacher_id=teacher.id, teacher_name=teacher.name, semester="2026.2", course=item["course"], class_code=item["class_code"], weekday=item["weekday"], start_time=item["start_time"], end_time=item["end_time"], room=item.get("room"), source="horário 2026.2 ZN - turmas v4.pdf"))
+    db.session.commit()
+    flash(f"Horário da Licenciatura 2026.2 importado: {len(items)} registros de turma.", "success")
+    return redirect(url_for("admin.schedule_management"))
+
+@bp.route("/memoria", methods=["GET", "POST"])
+@admin_required
+def memoria_management():
+    result = None
+    if request.method == "POST":
+        from app.services.memoria import sync_memoria
+        try:
+            result = sync_memoria()
+            flash(f"Memoria sincronizado: {result['created']} novos, {result['updated']} atualizados e {len(result['errors'])} ocorrências com erro.", "success" if not result["errors"] else "warning")
+        except Exception as exc:
+            flash(f"Não foi possível sincronizar o Memoria: {exc}", "danger")
+    works = MemoriaWork.query.filter_by(active=True).order_by(MemoriaWork.date.desc(), MemoriaWork.title).all()
+    return render_template("admin/memoria.html", works=works, result=result)
+
 @bp.get("/")
 @admin_required
 def dashboard():
@@ -75,6 +234,7 @@ def dashboard():
         "eventos": AcademicEvent.query.count(),
         "conhecimento": KnowledgeSource.query.count(),
         "projetos": Project.query.count(),
+        "enade": EnadeQuestion.query.count(),
     }
     return render_template("admin/dashboard.html", counts=counts)
 
@@ -145,7 +305,7 @@ def delete_discipline(discipline_id):
 def teachers():
     if request.method == "POST":
         teacher = Teacher(
-            name=request.form["name"], siape=request.form.get("siape"), suap_id=request.form.get("siape"), photo_url=request.form.get("photo_url"), email=request.form.get("email"),
+            name=request.form["name"], siape=request.form.get("siape"), suap_id=request.form.get("siape"), ingresso_disciplina=request.form.get("ingresso_disciplina"), photo_url=request.form.get("photo_url"), email=request.form.get("email"),
             lattes_url=request.form.get("lattes_url"), orcid_url=request.form.get("orcid_url"), education=request.form.get("education"),
             areas=request.form.get("areas"), bio=request.form.get("bio"), active=bool(request.form.get("active")),
         )
@@ -203,6 +363,32 @@ def events():
     q=request.args.get("q", "").strip(); query=AcademicEvent.query.order_by(AcademicEvent.starts_at.desc());
     if q: query=query.filter(AcademicEvent.title.ilike(f"%{q}%"))
     return render_template("admin/events.html", events=_paginate(query), q=q)
+
+@bp.route("/coordenadores", methods=["GET", "POST"])
+@login_required
+def coordinators_management():
+    if not current_user.is_admin:
+        abort(403)
+    if request.method == "POST":
+        obj = CourseCoordinator(
+            name=request.form.get("name", "").strip(),
+            start_year=int(request.form.get("start_year") or 0),
+            end_year=int(request.form.get("end_year")) if request.form.get("end_year") else None,
+            role=request.form.get("role") or "Coordenador(a) do curso",
+            profile_url=request.form.get("profile_url") or None,
+            notes=request.form.get("notes") or None,
+            active=bool(request.form.get("active")),
+        )
+        if not obj.name or not obj.start_year:
+            flash("Informe nome e ano inicial.", "error")
+        else:
+            db.session.add(obj)
+            db.session.commit()
+            flash("Histórico de coordenação salvo.", "success")
+            return redirect(url_for("admin.coordinators_management"))
+    coordinators = CourseCoordinator.query.order_by(CourseCoordinator.start_year.desc(), CourseCoordinator.name).all()
+    return render_template("admin/coordinators.html", coordinators=coordinators)
+
 
 @bp.route("/gestao", methods=["GET", "POST"])
 @admin_required
@@ -370,32 +556,13 @@ def import_governance_document():
 @bp.post("/docentes/sincronizar-suap")
 @admin_required
 def sync_teacher_photos():
-    from app.services.governance import _server_photo_map, _server_summary
-    updated = 0
-    for teacher in Teacher.query.all():
-        siapes = set()
-        if getattr(teacher, 'siape', None):
-            siapes.add(str(teacher.siape))
-        if getattr(teacher, 'suap_id', None):
-            siapes.add(str(teacher.suap_id))
-        siapes.update(str(m.siape) for m in GovernanceMember.query.filter_by(name=teacher.name).all() if m.siape)
-        for siape in siapes:
-            data = _server_summary(siape)
-            if not data:
-                continue
-            teacher.email = data.get('email') or teacher.email
-            photo = data.get('foto') or data.get('foto_url') or data.get('url_foto')
-            if photo:
-                photo = str(photo)
-                if not photo.startswith(('http://', 'https://', 'data:')):
-                    photo = current_app.config['SUAP_BASE_URL'].rstrip('/') + '/' + photo.lstrip('/')
-                teacher.photo_url = photo
-                teacher.siape = teacher.siape or siape
-                teacher.suap_id = teacher.suap_id or siape
-                updated += 1
-            break
-    db.session.commit()
-    flash(f"Fotos sincronizadas com o SUAP: {updated} docente(s) atualizado(s).", "success")
+    from app.services.governance import sync_teacher_data_from_suap
+    try:
+        found, updated = sync_teacher_data_from_suap(Teacher.query.all())
+        flash(f"SUAP sincronizado: {updated} docente(s) atualizado(s); {found} encontrado(s) no Campus ZN.", "success")
+    except Exception as exc:
+        db.session.rollback()
+        flash(f"Não foi possível consultar os servidores do SUAP: {exc}", "danger")
     return redirect(url_for("admin.teachers"))
 
 
@@ -498,3 +665,24 @@ def delete_project(project_id):
     db.session.commit()
     flash("Projeto excluído.", "success")
     return redirect(url_for("admin.projects"))
+
+
+@bp.get("/enade")
+@admin_required
+def enade_management():
+    exams = EnadeExam.query.order_by(EnadeExam.year.desc()).all()
+    counts = {e.id: EnadeQuestion.query.filter_by(exam_id=e.id).count() for e in exams}
+    return render_template("admin/enade.html", exams=exams, counts=counts)
+
+
+@bp.post("/enade/<int:year>/importar")
+@admin_required
+def import_enade(year):
+    from app.services.enade import import_exam_questions
+    try:
+        count, answers = import_exam_questions(year)
+        flash(f"ENADE {year}: {count} questões objetivas importadas; {answers} gabaritos identificados.", "success")
+    except Exception as exc:
+        db.session.rollback()
+        flash(f"Não foi possível importar o ENADE {year}: {exc}", "danger")
+    return redirect(url_for("admin.enade_management"))

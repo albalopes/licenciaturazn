@@ -17,10 +17,10 @@
       </a>
       <nav class="main-nav" aria-label="Navegação principal">
         <a href="{{ url_for('public.matrices') }}">Matrizes</a>
-        <a href="{{ url_for('public.teachers') }}">Docentes</a><a href="{{ url_for('public.projects') }}">Projetos</a><a href="{{ url_for('public.pibid') }}">PIBID</a>
-        <a href="{{ url_for('public.page', slug='vida-academica') }}">Vida acadêmica</a><a href="{{ url_for('public.documents') }}">Documentos</a>
+        <a href="{{ url_for('public.teachers') }}">Docentes</a><a href="{{ url_for('public.coordination') }}">Coordenação</a><a href="{{ url_for('public.projects') }}">Projetos</a><a href="{{ url_for('public.events') }}">Eventos</a><a href="{{ url_for('public.enade') }}">ENADE</a><a href="{{ url_for('public.pibid') }}">PIBID</a>
+        <a href="{{ url_for('public.page', slug='vida-academica') }}">Vida acadêmica</a><a href="{{ url_for('public.page', slug='estagio-extracurricular') }}">Estágios</a><a href="{{ url_for('public.faq') }}">Dúvidas</a><a href="https://portal.ifrn.edu.br/campus/natalzonanorte/ensino/calendario-academico/" target="_blank" rel="noopener">Calendário</a><a href="{{ url_for('public.documents') }}">Documentos</a>
         <a href="{{ url_for('chatbot.chat_page') }}">Assistente</a>
-        {% if current_user.is_authenticated and current_user.is_admin %}<a class="nav-admin" href="{{ url_for('admin.dashboard') }}">Administração</a>{% endif %}
+        {% if current_user.is_authenticated and current_user.is_admin %}<a class="nav-admin" href="{{ url_for('admin.dashboard') }}">Administração</a>{% endif %}{% if current_user.is_authenticated and not current_user.is_admin %}<a class="nav-admin" href="{{ url_for('student.dashboard') }}">Área do aluno</a>{% elif not current_user.is_authenticated %}<a class="nav-admin" href="{{ url_for('auth.login') }}">Entrar</a>{% endif %}
       </nav>
       <button class="nav-toggle" type="button" aria-label="Abrir menu">☰</button>
     </div>

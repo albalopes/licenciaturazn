@@ -1,0 +1,57 @@
+{% extends "layouts/base.html" %}
+{% block title %}Eventos e produção acadêmica · Licenciatura em Informática{% endblock %}
+{% block content %}
+<section class="page-hero"><div class="container"><span class="eyebrow">Vida acadêmica</span><h1>Eventos e produção acadêmica</h1><p>Eventos regulares do curso e publicações identificadas de estudantes e docentes da Licenciatura em Informática do Campus Natal-Zona Norte.</p></div></section>
+
+<section class="section"><div class="container">
+  <div class="section-heading"><div><span class="eyebrow">Eventos regulares</span><h2>Eventos que fazem parte da trajetória do curso</h2></div></div>
+  <div class="cards-grid three">
+    <article class="info-card">
+      <span class="tag">1 vez por ano</span><h3>SELINFO</h3>
+      <p><strong>Semana da Licenciatura em Informática.</strong> É realizada anualmente e integra a programação da Semana de Ciência e Tecnologia (SECIT) do Campus Natal-Zona Norte.</p>
+      <p class="muted">A primeira edição ocorreu em 2013. Registros institucionais de 2018 e 2022 também mostram a SELINFO integrada à programação da semana de ciência e tecnologia.</p>
+      <a class="btn btn-outline" href="https://portal.ifrn.edu.br/campus/reitoria/noticias/campus-zona-norte-promove-1a-semana-de-licenciatura-em-informatica/" target="_blank" rel="noopener">Histórico da SELINFO</a>
+    </article>
+    <article class="info-card">
+      <span class="tag">2 vezes por ano</span><h3>MALI</h3>
+      <p><strong>Mostra Acadêmica da Licenciatura em Informática.</strong> É destinada principalmente às apresentações dos Trabalhos de Conclusão de Curso, com uma edição por período letivo.</p>
+      <p class="muted">A edição 2026.1 foi realizada no Campus Natal-Zona Norte entre 08 e 21 de julho, com apresentações de trabalhos de conclusão e pesquisas do curso.</p>
+      <a class="btn btn-outline" href="https://portal.ifrn.edu.br/eventos/9444/" target="_blank" rel="noopener">MALI 2026.1</a>
+    </article>
+    <article class="info-card">
+      <span class="tag">Evento anual do Campus</span><h3>SECIT</h3>
+      <p><strong>Semana de Ciência e Tecnologia do Campus Natal-Zona Norte.</strong> A SECIT reúne eventos científicos, tecnológicos e de extensão; a SELINFO aparece entre os eventos que integram sua programação.</p>
+      <a class="btn btn-outline" href="https://portal.ifrn.edu.br/eventos/6336/" target="_blank" rel="noopener">Exemplo: SECIT 2024</a>
+    </article>
+  </div>
+</div></section>
+
+<section class="section section-alt"><div class="container">
+  <div class="section-heading"><div><span class="eyebrow">Publicações</span><h2>Produção acadêmica do curso</h2><p>Catálogo em atualização contínua de artigos, trabalhos em eventos e outras publicações localizadas em fontes institucionais, anais e registros públicos de docentes. A busca prioriza produções de estudantes e docentes vinculados à Licenciatura em Informática do Campus Natal-Zona Norte e permite filtrar por ano, evento, tema, docente ou autor.</p></div></div>
+  <form class="filter-panel" method="get" action="{{ url_for('public.events') }}">
+    <div class="form-grid">
+      <label>Ano<select name="ano"><option value="">Todos</option>{% for y in years %}<option value="{{ y }}" {% if selected_year==y %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></label>
+      <label>Tema<select name="tema"><option value="">Todos</option>{% for t in themes %}<option value="{{ t }}" {% if selected_theme==t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></label>
+      <label>Evento<select name="evento"><option value="">Todos</option>{% for e in event_names %}<option value="{{ e }}" {% if selected_event==e %}selected{% endif %}>{{ e }}</option>{% endfor %}</select></label>
+      <label>Docente<select name="docente"><option value="">Todos</option>{% for t in teacher_names %}<option value="{{ t }}" {% if selected_teacher==t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></label>
+      <label>Autor<input name="autor" value="{{ selected_author }}" placeholder="Nome do autor"></label>
+    </div>
+    <div class="filter-actions"><button class="btn btn-primary">Filtrar</button><a class="btn btn-outline" href="{{ url_for('public.events') }}">Limpar</a><span class="muted">{{ publications|length }} publicação(ões) encontrada(s)</span></div>
+  </form>
+
+  <div class="publication-list">
+    {% for item in publications %}
+    <article class="publication-card">
+      <div class="publication-meta"><span>{{ item.year }}</span><span>{{ item.publication_type }}</span>{% if item.event %}<span>{{ item.event }}</span>{% endif %}</div>
+      <h3>{{ item.title }}</h3>
+      <p class="authors">{{ item.authors }}</p>
+      {% if item.themes %}<div class="tag-list">{% for t in item.themes.split(';') if t.strip() %}<span class="tag">{{ t.strip() }}</span>{% endfor %}</div>{% endif %}
+      {% if item.description %}<p>{{ item.description }}</p>{% endif %}
+      <div class="publication-links"><a class="btn btn-outline" href="{{ item.url }}" target="_blank" rel="noopener">Abrir publicação</a>{% if item.doi %}<a class="btn-link" href="{{ item.doi }}" target="_blank" rel="noopener">DOI</a>{% endif %}</div>
+    </article>
+    {% else %}<div class="empty-state"><h3>Nenhuma publicação encontrada</h3><p>Tente retirar algum filtro ou pesquisar outro termo.</p></div>{% endfor %}
+  </div>
+</div></section>
+
+{% if academic_events %}<section class="section"><div class="container"><div class="section-heading"><div><span class="eyebrow">Agenda</span><h2>Outros eventos cadastrados</h2></div></div><div class="publication-list">{% for e in academic_events %}<article class="publication-card"><div class="publication-meta"><span>{{ e.starts_at.strftime('%d/%m/%Y') }}</span><span>{{ e.category or 'Evento' }}</span></div><h3>{{ e.title }}</h3>{% if e.description %}<p>{{ e.description }}</p>{% endif %}{% if e.url %}<a class="btn btn-outline" href="{{ e.url }}" target="_blank" rel="noopener">Mais informações</a>{% endif %}</article>{% endfor %}</div></div></section>{% endif %}
+{% endblock %}

@@ -6,10 +6,10 @@
   <div class="admin-title">Área restrita</div>
   <div class="admin-group"><small>Visão geral</small><a href="{{ url_for('admin.dashboard') }}">Dashboard</a></div>
   <div class="admin-group"><small>Currículo</small><a href="{{ url_for('admin.matrices') }}">Matrizes</a><a href="{{ url_for('admin.disciplines') }}">Disciplinas</a><a href="{{ url_for('admin.entrance_management') }}">Entradas</a></div>
-  <div class="admin-group"><small>Pessoas e gestão</small><a href="{{ url_for('admin.teachers') }}">Docentes</a><a href="{{ url_for('admin.governance_management') }}">Colegiado e NDE</a></div>
-  <div class="admin-group"><small>Projetos</small><a href="{{ url_for('admin.projects') }}">Projetos</a></div>
+  <div class="admin-group"><small>Pessoas e gestão</small><a href="{{ url_for('admin.teachers') }}">Docentes</a><a href="{{ url_for('admin.schedule_management') }}">Horários da Licenciatura</a><a href="{{ url_for('admin.governance_management') }}">Colegiado e NDE</a><a href="{{ url_for('admin.coordinators_management') }}">Histórico da coordenação</a></div>
+  <div class="admin-group"><small>Projetos</small><a href="{{ url_for('admin.projects') }}">Projetos</a></div><div class="admin-group"><small>Avaliação</small><a href="{{ url_for('admin.enade_management') }}">ENADE</a><a href="{{ url_for('admin.enade_results') }}">Resultados do ENADE</a></div>
   <div class="admin-group"><small>Conteúdo</small><a href="{{ url_for('admin.pages') }}">Páginas</a><a href="{{ url_for('admin.documents') }}">Documentos</a><a href="{{ url_for('admin.events') }}">Eventos</a><a href="{{ url_for('admin.faq_management') }}">FAQ</a></div>
-  <div class="admin-group"><small>Assistente</small><a href="{{ url_for('admin.knowledge_management') }}">Base de conhecimento</a></div>
+  <div class="admin-group"><small>Aluno e TCC</small><a href="{{ url_for('admin.student_preview') }}">Ver portal como aluno</a><a href="{{ url_for('admin.memoria_management') }}">TCCs no Memoria</a></div><div class="admin-group"><small>Assistente</small><a href="{{ url_for('admin.knowledge_management') }}">Base de conhecimento</a></div>
   <div class="admin-group"><a href="{{ url_for('public.home') }}">← Ver site</a><a href="{{ url_for('auth.logout') }}">Sair</a></div>
 </aside>
 <section class="admin-content">{% block admin_content %}{% endblock %}</section>

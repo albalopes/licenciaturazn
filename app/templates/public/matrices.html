@@ -1,7 +1,7 @@
 {% extends 'layouts/base.html' %}
 {% block title %}Matrizes curriculares{% endblock %}
 {% block content %}
-<section class="page-header"><div class="container"><span class="eyebrow">Currículo</span><h1>Matrizes curriculares</h1><p>Consulte a estrutura correspondente ao seu vínculo acadêmico. O portal mantém separadas as matrizes de 2012 e 2018.</p></div></section>
+<section class="page-header"><div class="container"><span class="eyebrow">Currículo</span><h1>Matrizes curriculares</h1><p>Consulte a estrutura correspondente ao seu vínculo acadêmico. O portal mantém separadas as matrizes históricas de 2009, 2012 e 2018 e o espaço reservado ao novo PPC.</p></div></section>
 <section class="section"><div class="container"><div class="card-grid three">
 {% for matrix in matrices %}
   {% if matrix.is_published %}

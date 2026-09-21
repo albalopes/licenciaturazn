@@ -6,7 +6,9 @@ A integração deste projeto utiliza exclusivamente a API atual em `/api/` docum
 
 ### Gestão de Pessoas
 
-- `GET /api/rh/servidores/` — coleção de servidores.
+- `GET /api/rh/servidores/?campus=ZN&page=1` — coleção de servidores do Campus Natal-Zona Norte.
+  - Parâmetros disponíveis confirmados na documentação: `nome`, `campus`, `matricula`, `setor`, `cargo_emprego` e `page`.
+  - O retorno inclui, entre outros, `matricula`, `nome`, `campus`, `cargo`, `funcao`, `curriculo_lattes` e `url_foto_75x100`.
 - `GET /api/rh/servidores_funcao_ativa/` — servidores com função ativa.
 - `GET /api/rh/servidores/detalhado/` — dados detalhados de servidores.
 - `GET /api/rh/servidores/integra/` — dados de servidores com escopo do Integra.
@@ -44,8 +46,8 @@ Nenhuma rota `/api/v2/` é utilizada.
 
 Ao importar uma portaria, o sistema usa a matrícula/SIAPE extraída do PDF e consulta:
 
-`GET /api/rh/servidor-resumido/?matricula={matricula}`
+`GET /api/rh/servidores/?campus=ZN&matricula={matricula}&page=1`
 
-Quando o SUAP devolver o campo `foto`, ele é associado ao cadastro do docente. O botão **Sincronizar fotos com SUAP** repete essa consulta para os docentes cadastrados.
+Quando o SUAP devolver `url_foto_75x100`, ele é associado ao cadastro do docente. O botão **Sincronizar dados e fotos com SUAP** faz uma consulta paginada de `/rh/servidores/?campus=ZN` e cruza os servidores com os docentes do curso pela matrícula/SIAPE. O endpoint `servidor-resumido` permanece apenas como fallback.
 
-Se o SUAP devolver `403`, o docente permanece cadastrado normalmente, mas a foto não é atualizada. Isso não é tratado como falha da importação da portaria.
+Se o token não tiver permissão para `/rh/servidores/`, a sincronização informa o erro na área restrita em vez de preencher dados fictícios.

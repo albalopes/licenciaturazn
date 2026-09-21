@@ -1,0 +1,39 @@
+{% extends 'layouts/base.html' %}
+{% block title %}Minha trajetória · Licenciatura em Informática{% endblock %}
+{% block content %}
+<section class="page-header"><div class="container content-narrow"><span class="eyebrow">Área do aluno</span><h1>Minha matriz e trajetória</h1><p>O SUAP informa a matriz e os requisitos oficiais; o portal reorganiza essas informações em uma leitura visual da sua formação.</p></div></section>
+<section class="section"><div class="container">
+  <div class="student-nav"><a href="{{ student_url('student.dashboard') }}">Visão geral</a><a class="active" href="{{ student_url('student.trajectory') }}">Minha trajetória</a><a href="{{ student_url('student.report') }}">Boletim</a><a href="{{ student_url('student.schedule') }}">Horário</a><a href="{{ student_url('student.classes') }}">Turmas</a><a href="{{ student_url('student.enade_dashboard') }}">ENADE</a></div>
+  {% if history_errors %}<div class="alert alert-warning"><strong>Algumas consultas não foram concluídas.</strong><ul>{% for error in history_errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
+  {% if not matrix %}<div class="empty"><strong>Não foi possível identificar automaticamente a matriz.</strong><p>O SUAP informou os seus dados acadêmicos, mas não foi possível relacioná-los com uma das matrizes cadastradas no portal. Isso evita atribuir uma matriz incorreta ao estudante.</p></div>{% else %}
+  <div class="student-progress-head">
+    <div><span class="eyebrow">{{ profile.matrix_raw or (matrix.year ~ ' · ' ~ matrix.title) }}</span><h2>Progresso curricular</h2><p>{% if completion and completion.percentual_cumprida is defined %}O SUAP informa {{ completion.percentual_cumprida|round(0)|int }}% de integralização.{% endif %} O portal detalha as disciplinas em cards.</p></div>
+    <div class="progress-ring"><strong>{% if completion and completion.percentual_cumprida is defined %}{{ completion.percentual_cumprida|round(0)|int }}%{% else %}{{ progress.percent|round(0)|int }}%{% endif %}</strong><span>integralização</span></div>
+  </div>
+  {% if completion and completion.percentual_cumprida is defined %}<div class="progress-bar"><span style="width: {{ [completion.percentual_cumprida, 100]|min }}%"></span></div>{% endif %}
+  <div class="info-grid"><div><small>Carga prevista</small><strong>{{ progress.total_hours }} h</strong></div><div><small>Carga concluída</small><strong>{{ progress.completed_hours }} h</strong></div><div><small>Componentes aprovados</small><strong>{{ progress.completed }}</strong></div></div>
+
+  {% if completion %}
+  <div class="info-grid student-requirements-grid">
+    <div><small>Obrigatórias</small><strong>{{ completion.regulares_obrigatorios.ch_cumprida if completion.regulares_obrigatorios else '—' }} h concluídas</strong><span>{{ completion.regulares_obrigatorios.ch_pendente if completion.regulares_obrigatorios else '—' }} h pendentes</span></div>
+    <div><small>Optativas</small><strong>{{ completion.regulares_optativos.ch_cumprida if completion.regulares_optativos else '—' }} h</strong><span>{{ completion.regulares_optativos.ch_pendente if completion.regulares_optativos else '—' }} h pendentes</span></div>
+    <div><small>Prática profissional</small><strong>{{ completion.atividades_pratica_profissional.ch_cumprida if completion.atividades_pratica_profissional else '—' }} h</strong><span>{{ completion.atividades_pratica_profissional.ch_pendente if completion.atividades_pratica_profissional else '—' }} h pendentes</span></div>
+    <div><small>Seminários</small><strong>{{ completion.seminarios.ch_cumprida if completion.seminarios else '—' }} h</strong><span>{{ completion.seminarios.ch_pendente if completion.seminarios else '—' }} h pendentes</span></div>
+  </div>
+  {% endif %}
+
+  <div class="trajectory-filters"><a class="{{ 'active' if status_filter=='todas' }}" href="{{ student_url('student.trajectory') }}">Todas</a><a class="{{ 'active' if status_filter=='aprovada' }}" href="?status=aprovada">Aprovadas</a><a class="{{ 'active' if status_filter=='cursando' }}" href="?status=cursando">Cursando</a><a class="{{ 'active' if status_filter=='reprovada' }}" href="?status=reprovada">Reprovadas</a><a class="{{ 'active' if status_filter=='pendente' }}" href="?status=pendente">Ainda não cursadas</a></div>
+  <div class="student-discipline-grid">
+    {% for item in cards %}
+    <article class="student-discipline-card status-{{ item.status }}">
+      <div class="student-card-top"><span class="badge">{{ item.discipline.semester }}º período</span><span class="status-pill">{{ item.status|capitalize }}</span></div>
+      <h3>{{ item.discipline.name }}</h3><p class="muted">{{ item.discipline.code or 'Componente curricular' }} · {{ item.discipline.hours or 0 }} h</p>
+      {% if item.grade is not none %}<div class="discipline-result"><strong>{{ '%.1f'|format(item.grade) }}</strong><span>média</span>{% if item.frequency is not none %}<span>{{ '%.0f'|format(item.frequency) }}% frequência</span>{% endif %}</div>{% endif %}
+      {% if item.period %}<small>Registro no SUAP: {{ item.period[0] }}.{{ item.period[1] }}</small>{% endif %}
+    </article>
+    {% else %}<div class="empty">Nenhum componente corresponde ao filtro selecionado.</div>{% endfor %}
+  </div>
+  <div class="notice-card" style="margin-top:24px"><strong>Como interpretar</strong><p>O portal não substitui o histórico oficial. O cruzamento serve para visualização: ele usa a situação registrada no boletim do SUAP e relaciona as disciplinas aos componentes da matriz local. Componentes como atividades acadêmicas, optativas e situações que não estejam representadas no boletim podem exigir conferência manual.</p></div>
+  {% endif %}
+</div></section>
+{% endblock %}

@@ -1,0 +1,7 @@
+{% extends 'admin/base.html' %}
+{% block title %}TCCs no Memoria · Administração{% endblock %}
+{% block admin_content %}
+<div class="admin-header"><div><span class="eyebrow">TCC</span><h1>Trabalhos no Memoria</h1><p>Itens da coleção de Licenciatura em Informática no Repositório Institucional.</p></div><a class="btn btn-outline" href="https://memoria.ifrn.edu.br/handle/1044/1045" target="_blank" rel="noopener">Abrir coleção no Memoria</a></div>
+<form method="post" class="admin-note"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><h2>Sincronização</h2><p>Consulta a coleção pública do Memoria e atualiza os trabalhos armazenados no portal. Execute novamente quando quiser verificar novos depósitos.</p><button class="btn btn-primary" type="submit">Sincronizar agora</button></form>
+<div class="admin-table"><table><thead><tr><th>Título</th><th>Autor(es)</th><th>Data</th><th>Campus</th><th>Sincronizado</th></tr></thead><tbody>{% for work in works %}<tr><td><a href="{{ work.url }}" target="_blank" rel="noopener"><strong>{{ work.title }}</strong></a></td><td>{{ work.authors or '—' }}</td><td>{{ work.date or '—' }}</td><td>{{ work.campus or 'Natal - Zona Norte' }}</td><td>{{ work.synced_at.strftime('%d/%m/%Y %H:%M') }}</td></tr>{% else %}<tr><td colspan="5">Nenhum trabalho sincronizado ainda. Clique em “Sincronizar agora”.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

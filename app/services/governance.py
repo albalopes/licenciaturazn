@@ -6,7 +6,7 @@ from flask import current_app
 
 from app.extensions import db
 from app.models import GovernanceDocument, GovernanceMember, Teacher, TeacherHistory
-from app.services.suap import api_get_custom
+from app.services.suap import api_get_custom, api_get_url
 
 
 def _clean(value):
@@ -150,75 +150,158 @@ def parse_governance_pdf(path: str | Path, body: str):
                     members.append({'siape': siape, 'name': name, 'role': role, 'substitute': substitute, 'atuacao': atuacao_semesters[:marks] if atuacao_semesters and marks else []})
     return {'number': number, 'issued_at': issued_at, 'semester': semester, 'members': members, 'text': text}
 
-def _server_summary(matricula):
-    """Consulta o endpoint documentado /api/rh/servidor-resumido/.
+def _server_results(campus='ZN', matricula=None):
+    """Consulta /api/rh/servidores/ usando campus, matrícula e page."""
+    results = []
+    seen = set()
+    next_url = None
+    page = 1
+    for _ in range(1000):
+        if next_url:
+            data = api_get_url(next_url)
+        else:
+            params = {'campus': campus, 'page': page}
+            if matricula:
+                params['matricula'] = str(matricula)
+            data = api_get_custom(current_app.config['SUAP_ENDPOINT_SERVERS'], params)
+        page_results = data if isinstance(data, list) else data.get('results', [])
+        if not page_results:
+            break
+        for item in page_results:
+            ident = item.get('matricula') or item.get('siape') or item.get('id')
+            key = str(ident) if ident not in (None, '') else repr(item)
+            if key not in seen:
+                seen.add(key)
+                results.append(item)
+        if not isinstance(data, dict):
+            break
+        next_url = data.get('next')
+        if next_url:
+            continue
+        count = data.get('count')
+        if count is not None and len(results) < int(count):
+            page += 1
+            continue
+        break
+    return results
 
-    O schema documentado no SUAP retorna matrícula, nome, campus, e-mail e foto.
-    Alguns usuários podem receber 403 nesse endpoint; nesse caso retornamos None
-    para que a importação da portaria continue sem interromper o processo.
+def _server_summary(matricula):
+    """Obtém os dados de um servidor pela coleção /rh/servidores/.
+
+    A documentação exibida pelo usuário mostra que este endpoint aceita
+    campus=ZN e matricula, e retorna matrícula, nome, cargo, campus,
+    url_foto_75x100 e outros dados funcionais. O endpoint resumido é usado
+    apenas como fallback porque pode responder 403 para alguns tokens.
     """
+    if not matricula:
+        return None
     try:
-        data = api_get_custom(
-            'rh/servidor-resumido/',
-            {'matricula': str(matricula)},
-        )
+        results = _server_results(campus=current_app.config.get('SUAP_CAMPUS_SIGLA', 'ZN'), matricula=str(matricula))
+        target = str(matricula)
+        for item in results:
+            if str(item.get('matricula', '')).strip() == target:
+                return item
+        return results[0] if results else None
+    except Exception:
+        pass
+
+    # Fallback: endpoint resumido documentado, quando o token tiver essa permissão.
+    try:
+        data = api_get_custom('rh/servidor-resumido/', {'matricula': str(matricula)})
         return data if isinstance(data, dict) else None
     except Exception:
         return None
 
 
-def _server_photo_map(identifiers=None):
-    """Obtém fotos por matrícula usando o endpoint oficial documentado.
+def _photo_from_server(data):
+    if not isinstance(data, dict):
+        return None
+    photo = next((data.get(k) for k in (
+        'url_foto_75x100', 'url_foto', 'foto', 'foto_url', 'imagem', 'image',
+        'url_imagem', 'foto_servidor'
+    ) if data.get(k)), None)
+    if not photo:
+        return None
+    photo = str(photo)
+    if photo.startswith(('http://', 'https://', 'data:')):
+        return photo
+    return current_app.config['SUAP_BASE_URL'].rstrip('/') + '/' + photo.lstrip('/')
 
-    Primeiro tenta /rh/servidor-resumido/?matricula=..., que documenta
-    explicitamente o campo `foto`. Se nenhum identificador for informado,
-    percorre /rh/servidores/ como fallback.
+
+def _server_photo_map(identifiers=None):
+    """Obtém fotos dos servidores usando /rh/servidores/?campus=ZN.
+
+    Quando são informadas matrículas, a API é consultada diretamente por matrícula,
+    evitando baixar todos os servidores. Sem matrículas, baixa a coleção paginada
+    do Campus ZN e indexa por matrícula.
     """
     photos = {}
     ids = [str(x) for x in (identifiers or []) if x not in (None, '')]
+    campus = current_app.config.get('SUAP_CAMPUS_SIGLA', 'ZN')
 
     if ids:
         for ident in ids:
             data = _server_summary(ident)
-            if not data:
-                continue
-            photo = data.get('foto') or data.get('foto_url') or data.get('url_foto')
+            photo = _photo_from_server(data)
             if photo:
-                photo = str(photo)
-                if not photo.startswith(('http://', 'https://', 'data:')):
-                    photo = current_app.config['SUAP_BASE_URL'].rstrip('/') + '/' + photo.lstrip('/')
                 photos[ident] = photo
         return photos
 
-    # Fallback para a coleção de servidores, caso ela esteja autorizada.
-    offset = 0
-    limit = 100
-    while True:
-        try:
-            data = api_get_custom(current_app.config['SUAP_ENDPOINT_SERVERS'], {'limit': limit, 'offset': offset})
-        except Exception:
-            break
-        results = data.get('results', data if isinstance(data, list) else [])
-        if not results:
-            break
-        for item in results:
-            photo = next((item.get(k) for k in ('foto', 'foto_url', 'url_foto', 'imagem', 'image', 'url_imagem', 'foto_servidor') if item.get(k)), None)
+    try:
+        for item in _server_results(campus=campus):
+            photo = _photo_from_server(item)
             if not photo:
                 continue
-            photo = str(photo)
-            if not photo.startswith(('http://', 'https://', 'data:')):
-                photo = current_app.config['SUAP_BASE_URL'].rstrip('/') + '/' + photo.lstrip('/')
             for ident in (item.get('matricula'), item.get('siape'), item.get('id'), item.get('identificacao')):
                 if ident not in (None, ''):
                     photos[str(ident)] = photo
-        offset += len(results)
-        count = data.get('count') if isinstance(data, dict) else None
-        if count is not None and offset >= int(count):
-            break
-        if len(results) < limit or offset > 100000:
-            break
+    except Exception:
+        pass
     return photos
 
+
+def sync_teacher_data_from_suap(teachers):
+    """Atualiza dados funcionais/foto dos docentes já cadastrados no curso.
+
+    Usa uma única varredura paginada do Campus ZN e cruza por matrícula/SIAPE.
+    Não cria professores novos: a lista de docentes do curso continua sendo
+    determinada pelas portarias do Colegiado/NDE.
+    """
+    by_id = {}
+    for item in _server_results(campus=current_app.config.get('SUAP_CAMPUS_SIGLA', 'ZN')):
+        for ident in (item.get('matricula'), item.get('siape'), item.get('id')):
+            if ident not in (None, ''):
+                by_id[str(ident)] = item
+
+    updated = 0
+    found = 0
+    for teacher in teachers:
+        ids = {str(x) for x in (getattr(teacher, 'siape', None), getattr(teacher, 'suap_id', None)) if x not in (None, '')}
+        ids.update(str(m.siape) for m in GovernanceMember.query.filter_by(name=teacher.name).all() if m.siape)
+        data = next((by_id[i] for i in ids if i in by_id), None)
+        if not data:
+            continue
+        found += 1
+        teacher.siape = str(data.get('matricula') or teacher.siape) if (data.get('matricula') or teacher.siape) else teacher.siape
+        teacher.suap_id = teacher.suap_id or teacher.siape
+        teacher.email = data.get('email') or teacher.email
+        photo = _photo_from_server(data)
+        if photo:
+            teacher.photo_url = photo
+        # Campos expostos pela coleção atual do SUAP /api/rh/servidores/.
+        # Mantemos o valor manual quando a API não retornar o campo.
+        lattes = data.get('curriculo_lattes') or data.get('lattes_url')
+        if lattes:
+            teacher.lattes_url = str(lattes)
+        ingresso = data.get('disciplina_ingresso')
+        if ingresso:
+            teacher.ingresso_disciplina = str(ingresso)
+        areas = data.get('cargo') or data.get('funcao')
+        if areas and not teacher.areas:
+            teacher.areas = str(areas)
+        updated += 1
+    db.session.commit()
+    return found, updated
 
 def import_governance(path, body, title=None, document_url=None):
     parsed = parse_governance_pdf(path, body)
@@ -255,12 +338,11 @@ def import_governance(path, body, title=None, document_url=None):
             server_data = _server_summary(item['siape']) if item['siape'] else None
             if server_data:
                 teacher.email = server_data.get('email') or teacher.email
-                photo = server_data.get('foto') or server_data.get('foto_url') or server_data.get('url_foto')
+                photo = _photo_from_server(server_data)
                 if photo:
-                    photo = str(photo)
-                    if not photo.startswith(('http://', 'https://', 'data:')):
-                        photo = current_app.config['SUAP_BASE_URL'].rstrip('/') + '/' + photo.lstrip('/')
                     teacher.photo_url = photo
+                teacher.lattes_url = server_data.get('curriculo_lattes') or server_data.get('lattes_url') or teacher.lattes_url
+                teacher.ingresso_disciplina = server_data.get('disciplina_ingresso') or teacher.ingresso_disciplina
 
             semesters = item.get('atuacao') or [parsed['semester']]
             for term in semesters:

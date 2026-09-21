@@ -1,0 +1,92 @@
+{% extends 'layouts/base.html' %}
+{% block title %}Área do aluno · Licenciatura em Informática{% endblock %}
+{% block content %}
+<section class="student-hero">
+  <div class="container">
+    <div class="student-hero-inner">
+      <div>
+        <span class="eyebrow">Área do aluno</span>
+        <h1>Olá, {{ profile.name or current_user.name }}!</h1>
+        <p>Uma visão acadêmica simplificada, usando os dados que você autoriza o SUAP a disponibilizar.</p>
+      </div>
+      <div class="student-profile-card">
+        {% if profile.photo %}<img src="{{ profile.photo }}" alt="Foto de {{ profile.name }}">{% else %}<div class="avatar-placeholder">{{ (profile.name or 'A')[:1]|upper }}</div>{% endif %}
+        <div><strong>{{ profile.registration or current_user.registration or '—' }}</strong><span>{{ profile.status or 'Situação não informada' }}</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section"><div class="container">{% if demo %}<div class="alert alert-info"><strong>Modo de demonstração administrativa.</strong> Os dados exibidos são fictícios e servem apenas para você testar a experiência da Área do Aluno.</div>{% endif %}
+  <div class="student-nav">
+    <a class="active" href="{{ student_url('student.dashboard') }}">Visão geral</a>
+    <a href="{{ student_url('student.trajectory') }}">Minha trajetória</a>
+    <a href="{{ student_url('student.report') }}">Boletim</a>
+    <a href="{{ student_url('student.schedule') }}">Horário</a>
+    <a href="{{ student_url('student.classes') }}">Turmas</a>
+    <a href="{{ student_url('student.enade_dashboard') }}">ENADE</a>
+  </div>
+
+  {% if errors %}<div class="alert alert-warning"><strong>Algumas informações não puderam ser carregadas.</strong><ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
+
+  <div class="student-grid student-grid-3">
+    <article class="student-card highlight"><small>Curso</small><h2>{{ profile.course or 'Licenciatura em Informática' }}</h2><p>{{ profile.campus or 'IFRN' }}</p></article>
+    <article class="student-card"><small>Matriz do seu curso</small><h2>{{ profile.matrix_raw or (matrix.year if matrix else '—') }}</h2><p>{% if matrix %}<a href="{{ student_url('student.trajectory') }}">Ver minha matriz e trajetória →</a>{% else %}A matriz informada pelo SUAP ainda não possui uma correspondência local publicada.{% endif %}</p></article>
+    <article class="student-card"><small>Progresso no curso</small><h2>{% if completion and completion.percentual_cumprida is defined %}{{ completion.percentual_cumprida|round(0)|int }}%{% else %}—{% endif %}</h2><p>Integralização informada pelo SUAP{% if current %} · período {{ current.label }}{% endif %}</p></article>
+  </div>
+
+  {% if current_disciplines %}
+  <div class="student-card" style="margin-bottom:18px">
+    <div class="card-heading"><div><small>Período {{ current.label if current else '' }}</small><h2>Disciplinas que você está cursando</h2></div><a href="{{ student_url('student.trajectory') }}">Ver trajetória</a></div>
+    <div class="student-discipline-grid student-discipline-grid-compact">
+      {% for item in current_disciplines[:6] %}
+      <article class="student-discipline-card status-cursando">
+        <div class="student-card-top"><span class="badge">{{ item.code or 'Componente' }}</span><span class="status-pill">{{ item.status or 'Cursando' }}</span></div>
+        <h3>{{ item.name or 'Disciplina' }}</h3>
+        {% if item.frequency is not none %}<div class="discipline-result"><strong>{{ item.frequency }}%</strong><span>frequência</span></div>{% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="student-grid student-grid-2">
+    <article class="student-card">
+      <div class="card-heading"><div><small>Seu momento acadêmico</small><h2>O que está acontecendo agora</h2></div><a href="{{ student_url('student.report') }}">Ver boletim</a></div>
+      {% if current_report %}
+      <div class="mini-list">{% for row in current_report[:6] %}<div><strong>{{ row.disciplina or row.componente_curricular or row.nome or 'Disciplina' }}</strong><span>{{ row.situacao or row.status or 'Em andamento' }}{% if row.media_final_disciplina is defined and row.media_final_disciplina != '' %} · média {{ row.media_final_disciplina }}{% endif %}</span></div>{% endfor %}</div>
+      {% else %}<p class="muted">Não foi possível obter o boletim do período mais recente.</p>{% endif %}
+    </article>
+    <article class="student-card">
+      <div class="card-heading"><div><small>Horário</small><h2>{{ current.label if current else 'Período atual' }}</h2></div><a href="{{ student_url('student.schedule') }}">Ver horário</a></div>
+      {% if schedule_entries %}<div class="mini-list">{% for item in schedule_entries[:6] %}<div><strong>{{ item.day }} · {{ item.time }}</strong><span>{{ item.code }} · {{ item.name }}{% if item.location %} · {{ item.location }}{% endif %}</span></div>{% endfor %}</div>{% else %}<p class="muted">Horário não disponível para o período consultado.</p>{% endif %}
+    </article>
+  </div>
+
+  {% if completion %}
+  <div class="student-grid student-grid-2">
+    <article class="student-card highlight">
+      <div class="card-heading"><div><small>Integralização oficial</small><h2>Quanto falta para concluir?</h2></div><span class="progress-value">{{ completion.percentual_cumprida|round(0)|int }}%</span></div>
+      <div class="progress-bar"><span style="width: {{ [completion.percentual_cumprida, 100]|min }}%"></span></div>
+      <div class="info-grid"><div><small>Obrigatórias</small><strong>{{ completion.regulares_obrigatorios.ch_cumprida if completion.regulares_obrigatorios else '—' }} h</strong></div><div><small>Pendentes</small><strong>{{ completion.regulares_obrigatorios.ch_pendente if completion.regulares_obrigatorios else '—' }} h</strong></div></div>
+      <p class="muted">Este indicador é calculado pelo próprio SUAP a partir dos requisitos de conclusão.</p>
+    </article>
+    <article class="student-card">
+      <div class="card-heading"><div><small>Próximos passos</small><h2>Não perca o que vem pela frente</h2></div></div>
+      {% if upcoming_evaluations %}<div class="mini-list">{% for item in upcoming_evaluations[:5] %}<div><strong>{{ item.discipline or item.title or 'Avaliação' }}</strong><span>{{ item.title }}{% if item.date %} · {{ item.date }}{% endif %}</span></div>{% endfor %}</div>{% else %}<p class="muted">O SUAP não retornou próximas avaliações neste momento.</p>{% endif %}
+    </article>
+  </div>
+  {% endif %}
+
+  <div class="student-card student-callout">
+    <div><small>Mais útil que apenas consultar o SUAP</small><h2>Minha trajetória no curso</h2><p>O portal cruza o seu boletim com a matriz da Licenciatura em Informática para organizar as disciplinas em cards e mostrar o que já foi concluído, o que está em andamento e o que ainda falta.</p></div>
+    <a class="btn btn-primary" href="{{ student_url('student.trajectory') }}">Acompanhar progresso</a>
+  </div>
+
+  <div class="student-grid student-grid-3">
+    <a class="student-feature" href="{{ student_url('student.trajectory') }}"><span>01</span><h3>Minha matriz</h3><p>Visualize a estrutura do curso e a sua situação em cada componente.</p></a>
+    <a class="student-feature" href="{{ student_url('student.classes') }}"><span>02</span><h3>Turmas virtuais</h3><p>Acesse as turmas disponibilizadas pelo SUAP em uma interface mais simples.</p></a>
+    <a class="student-feature" href="{{ student_url('student.enade_dashboard') }}"><span>03</span><h3>Preparação para o ENADE</h3><p>Resolva questões de edições anteriores e acompanhe sua evolução.</p></a>
+  </div>
+</div></section>
+{% endblock %}

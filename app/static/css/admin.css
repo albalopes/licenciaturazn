@@ -6,3 +6,4 @@
 .admin-search input,.admin-search select{flex:1;min-height:40px;padding:8px 10px;border:1px solid #d7dce2;border-radius:8px;background:#fff}
 .pagination{display:flex;gap:14px;align-items:center;justify-content:flex-end;margin:14px 0;font-size:.9rem}
 .pagination a{padding:7px 10px;border:1px solid #d7dce2;border-radius:7px;text-decoration:none}
+.admin-note{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-top:20px}.admin-note h2{margin-top:0}

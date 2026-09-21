@@ -13,6 +13,9 @@ def create_app(config_object=None):
     login_manager.init_app(app)
     csrf.init_app(app)
 
+    import json
+    app.jinja_env.filters["fromjson"] = json.loads
+
     from .models import User
 
     @login_manager.user_loader
@@ -24,11 +27,13 @@ def create_app(config_object=None):
     from .blueprints.auth import bp as auth_bp
     from .blueprints.api import bp as api_bp
     from .blueprints.chatbot import bp as chatbot_bp
+    from .blueprints.student import bp as student_bp
 
     app.register_blueprint(public_bp)
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(api_bp, url_prefix="/api")
     app.register_blueprint(chatbot_bp, url_prefix="/assistente")
+    app.register_blueprint(student_bp, url_prefix="/aluno")
 
     return app
